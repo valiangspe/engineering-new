@@ -1,0 +1,30 @@
+{
+  "dev": {
+    "base_url": "http://localhost:5172",
+    "authserver_url": "http://localhost:8083",
+    "meeting_url": "http://localhost:8085",
+    "ppic_url": "http://localhost:8080",
+    "registry_url": "10.8.0.10:4000"
+  },
+  "prod": {
+    "base_url": "`${window.location.origin}`",
+    "authserver_url": "https://authserver-backend.iotech.my.id",
+    "meeting_url": "https://meeting-backend.iotech.my.id",
+    "ppic_url": "https://ppic-backend.iotech.my.id",
+    "registry_url": "10.8.0.10:4000"
+  },
+  "prod-local": {
+    "base_url": "`${window.location.origin}`",
+    "authserver_url": "https://authserver-backend.iotech.my.id",
+    "meeting_url": "https://meeting-backend.iotech.my.id",
+    "ppic_url": "https://ppic-backend.iotech.my.id",
+    "registry_url": "10.8.0.10:4000"
+  },
+  "prod-local2": {
+    "base_url": "`${window.location.origin}`",
+    "authserver_url": "https://authserver-backend.iotech.my.id",
+    "meeting_url": "https://meeting-backend.iotech.my.id",
+    "ppic_url": "https://ppic-backend.iotech.my.id",
+    "registry_url": "10.8.0.142:4000"
+  }
+}

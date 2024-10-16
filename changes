@@ -1,0 +1,40 @@
+- dashboard: add inquiry masuk (revisi/new), sales/engineer yang di assign di inquiry
+
+(ambil dari CRM)
+
+- [OK] Last time process, di dashboard, Pre PO
+- [OK] Filter workload per manpower
+- [OK] Input done ver. Engineer
+- [OK] Outstanding Post PO-> kolom product, elec/mech, orang yang di assign & deadline
+
+- [OK] Manpower , buat satu satu (di report ada banyak)
+- Input document di dalam program eng
+
+Aug 2
+- [OK] Cost untuk ECN & CCN
+- [OK]Threshold cost CCN/ECN (configurable)
+- Eng activities dashboard order:
+    1. electrical
+    2. mechanical
+    3. services
+- Activity by sales opportunity
+- Calendar mode, manpower
+
+Engineering qualities (staff):
+- Ontime Sales opportunity
+- Ontime post PO
+- Quality (no. of NCR)
+- Attendance
+
+Aug 6
+- Ikuti dashboard engineering:
+    1. Sales performance overview -> Eng performance overview: 
+        - Price ganti jadi time process
+        - sales name -> dept
+        - WTD - MTD only. omit YTD
+        - Warning if threshold too high
+
+Aug 9
+- Lihat detail per manpower , untuk detect mana hari yang kosong
+- Get data inquiry dari CRM, tandain mana kekurangannya
+- [OK] Upload ke internet, biar bisa dicoba
