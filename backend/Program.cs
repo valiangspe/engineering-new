@@ -393,6 +393,8 @@ app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, st
         worksheet.Cell(1, 5).Value = "Quo";
 
         worksheet.Cell(1, 6).Value = "In Charge";
+        worksheet.Cell(1, 6).Value = "Hours";
+
         worksheet.Cell(1, 7).Value = "Start Date";
         worksheet.Cell(1, 8).Value = "End Date";
 
@@ -412,8 +414,10 @@ app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, st
                 worksheet.Cell(row, 4).Value = $"{foundInq?.InquiryNumber} ({foundInq?.Account?.Name})";
                 worksheet.Cell(row, 5).Value = $"{foundInq?.Quotation?.Name}";
                 worksheet.Cell(row, 6).Value = string.Join(", ", task.InCharges?.Select(i => i.PicName) ?? []);
-                worksheet.Cell(row, 7).Value = activity.FromCache?.ToString("yyyy-MM-dd");
-                worksheet.Cell(row, 8).Value = activity.ToCache?.ToString("yyyy-MM-dd");
+                worksheet.Cell(row, 7).Value = $"{task.Hours}";
+
+                worksheet.Cell(row, 8).Value = activity.FromCache?.ToString("yyyy-MM-dd");
+                worksheet.Cell(row, 9).Value = activity.ToCache?.ToString("yyyy-MM-dd");
 
                 row++;
             }
