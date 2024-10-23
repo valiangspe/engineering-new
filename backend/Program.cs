@@ -232,12 +232,16 @@ app.MapPost("/bomapprovals", async (BomApproval bomApproval, AppDbContext db) =>
 
     await db.SaveChangesAsync();
 
+    Console.WriteLine(bomApproval.ExtBomLeveledId);
+    Console.WriteLine(bomApproval.Pics?.Count);
+    
     // If bom approval has PIC, snpshot
-    if ((bomApproval.Pics?.Count() ?? 0) > 0)
+    if ((bomApproval.Pics?.Count ?? 0) > 0)
     {
         try
         {
-            var response = await new HttpClient().GetAsync($"https://ppic-backend.iotech.my.id/snapshot-bom/${bomApproval.ExtBomLeveledId}");
+            var response = await new HttpClient().GetAsync($"https://ppic-backend.iotech.my.id/snapshot-bom/{bomApproval.ExtBomLeveledId}");
+            Console.WriteLine(await response.Content.ReadAsStringAsync());
         }
         catch (Exception e)
         {
