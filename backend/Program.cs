@@ -229,7 +229,23 @@ app.MapPost("/bomapprovals", async (BomApproval bomApproval, AppDbContext db) =>
     {
         db.BomApprovals.Update(bomApproval);
     }
+
     await db.SaveChangesAsync();
+
+    // If bom approval has PIC, snpshot
+    if ((bomApproval.Pics?.Count() ?? 0) > 0)
+    {
+        try
+        {
+            var response = await new HttpClient().GetAsync($"https://ppic-backend.iotech.my.id/snapshot-bom/${bomApproval.ExtBomLeveledId}");
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Error {e}");
+        }
+
+    }
+
     return Results.Ok(bomApproval);
 });
 
