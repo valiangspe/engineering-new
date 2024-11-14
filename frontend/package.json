@@ -15,7 +15,8 @@
     "chart.js": "^4.4.3",
     "chroma-js": "^2.6.0",
     "jwt-decode": "^4.0.0",
-    "markdown": "^0.5.0",
+    "pinia": "^2.2.5",
+    "uuid": "^11.0.2",
     "vue": "^3.4.31",
     "vue-chartjs": "^5.3.1",
     "vue-markdown-render": "^2.2.1",
@@ -27,5 +28,9 @@
     "@vitejs/plugin-vue": "^5.0.5",
     "vite": "^5.3.4"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
+  "description": "This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.",
+  "main": "vite.config.js",
+  "author": "",
+  "license": "ISC"
 }

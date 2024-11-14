@@ -320,6 +320,9 @@ const foundItem = computed(() => {
     <strong>Items</strong>
     <div class="border border-dark">
       <table class="table table-sm">
+        <thead>
+
+      
         <th
           v-for="h in [
             '#',
@@ -339,6 +342,10 @@ const foundItem = computed(() => {
         >
           {{ h }}
         </th>
+      </thead>
+      <tbody>
+
+      
         <tr v-for="(i, i_) in ecn?.items?.filter((i) => !i.deletedAt) ?? []">
           <template
             v-for="d in [
@@ -468,6 +475,7 @@ const foundItem = computed(() => {
             </td>
           </template>
         </tr>
+      </tbody>
       </table>
     </div>
 
@@ -600,6 +608,9 @@ const foundItem = computed(() => {
             style="height: 65vh; resize: vertical"
           >
             <table class="table table-sm" :style="`border-collapse: separate`">
+              <thead>
+
+             
               <tr>
                 <th
                   v-for="h in [
@@ -616,6 +627,8 @@ const foundItem = computed(() => {
                   {{ h }}
                 </th>
               </tr>
+            </thead>
+             <tbody>
               <tr v-for="(i, i_) in itemsFiltered">
                 <td class="border border-dark">{{ i_ + 1 }}</td>
                 <td class="border border-dark">{{ i?.partNum }}</td>
@@ -645,6 +658,7 @@ const foundItem = computed(() => {
                   </div>
                 </td>
               </tr>
+            </tbody>
             </table>
           </div>
         </div>

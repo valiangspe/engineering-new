@@ -270,6 +270,7 @@ const mergedItems = computed(() => {
         style="height: 75vh; resize: vertical"
       >
         <table class="table table-sm" style="border-collapse: separate">
+          <thead>
           <tr>
             <th
               v-for="(h, i) in [
@@ -286,7 +287,8 @@ const mergedItems = computed(() => {
               {{ h }}
             </th>
           </tr>
-
+        </thead>
+        <tbody>
           <tr v-for="(b, i) in bomApproval?.pics?.filter((p) => !p?.deletedAt)">
             <template
               v-for="d in [
@@ -400,6 +402,7 @@ const mergedItems = computed(() => {
               </td>
             </template>
           </tr>
+        </tbody>
         </table>
       </div>
     </template>
@@ -410,6 +413,7 @@ const mergedItems = computed(() => {
         style="height: 75vh; resize: vertical"
       >
         <table class="table table-sm" style="border-collapse: separate">
+          <thead>
           <tr>
             <th
               v-for="(h, i) in [
@@ -426,6 +430,8 @@ const mergedItems = computed(() => {
               {{ h }}
             </th>
           </tr>
+        </thead>
+        <tbody>
           <tr
             v-for="(c, i) in bomDetail?.children?.filter((c) => c?.extItemId) ??
             []"
@@ -447,6 +453,7 @@ const mergedItems = computed(() => {
               <td class="border border-dark">{{ d?.foundItem?.defaultUm }}</td>
             </template>
           </tr>
+        </tbody>
         </table>
       </div>
     </template>
@@ -525,6 +532,7 @@ const mergedItems = computed(() => {
 
       <div>
         <table class="table table-sm" style="border-collapse: separate">
+          <thead>
           <tr>
             <th
               v-for="h in [
@@ -540,6 +548,8 @@ const mergedItems = computed(() => {
               {{ h }}
             </th>
           </tr>
+        </thead>
+        <tbody>
           <tr
             v-for="(item, index) in mergedItems?.filter(
               (i) => i?.bom1?.extItemId || i?.bom2?.extItemId
@@ -598,6 +608,7 @@ const mergedItems = computed(() => {
               </td></template
             >
           </tr>
+        </tbody>
         </table>
       </div>
     </template>

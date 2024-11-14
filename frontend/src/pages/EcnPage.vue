@@ -66,6 +66,7 @@ fetchWarehouseItemsData();
         style="height: 60vh; resize: vertical"
       >
         <table class="table table-sm" style="border-collapse: separate">
+          <thead>
           <tr>
             <th
               style="position: sticky; top: 0"
@@ -96,6 +97,8 @@ fetchWarehouseItemsData();
               {{ h }}
             </th>
           </tr>
+        </thead>
+        <tbody>
           <tr v-for="(e, i) in ecns">
             <template
               v-for="d in [
@@ -234,6 +237,7 @@ fetchWarehouseItemsData();
               </td>
             </template>
           </tr>
+        </tbody>
         </table>
       </div>
     </div>

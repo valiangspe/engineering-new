@@ -143,6 +143,19 @@ export const fetchBomDetail = async (params) => {
   }
 };
 
+
+//BY TASK ID
+export const fetchActivityByTaskId = async (taskId) => {
+  const response = await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activityByTaskId?taskId=${taskId}`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch activity by task ID.");
+  }
+  return await response.json();
+};
+
+
+
+
 export const fetchUser = async (params) => {
   try {
     const resp = await fetch(

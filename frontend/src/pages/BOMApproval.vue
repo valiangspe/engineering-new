@@ -60,6 +60,7 @@ fetchUsersData();
       style="height: 75vh; resize: vertical"
     >
       <table class="table table-sm" style="border-collapse: separate">
+        <thead>
         <tr>
           <th
             v-for="(h, i) in [
@@ -77,7 +78,8 @@ fetchUsersData();
             {{ h }}
           </th>
         </tr>
-
+      </thead>
+      <tbody>
         <tr v-for="(b, i) in boms?.bomLeveleds">
           <template
             v-for="d in [
@@ -190,6 +192,7 @@ fetchUsersData();
             </td>
           </template>
         </tr>
+      </tbody>
       </table>
     </div>
   </div>

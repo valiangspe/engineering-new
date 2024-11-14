@@ -5,15 +5,15 @@
       @click.stop="ctx.drawer = !ctx.drawer"
     ></v-app-bar-nav-icon>
 
-    <v-toolbar-title
-      >GSPE Engineering | {{ ctx?.user?.username }}</v-toolbar-title
-    >
+    <v-toolbar-title>
+      GSPE Engineering | {{ ctx?.user?.username }} | {{ userRole }}
+    </v-toolbar-title>
 
     <v-spacer></v-spacer>
 
     <template v-if="$vuetify.display.mdAndUp">
       <v-btn icon="mdi-magnify" variant="text"></v-btn>
-
+      
       <v-btn icon="mdi-filter" variant="text"></v-btn>
     </template>
 
@@ -53,13 +53,28 @@
         value="activity"
       ></v-list-item>
 
+      <!-- Tambahkan Item untuk Add Role -->
+      <v-list-item
+        href="/#/addRole"
+        prepend-icon="mdi-account-plus"
+        title="Add Role"
+        value="addrole"
+      ></v-list-item>
+
+      <!-- Tambahkan Item untuk Notifications -->
+      <v-list-item
+        href="/#/notifications"
+        prepend-icon="mdi-bell"
+        title="Notifications"
+        value="notifications"
+      ></v-list-item>
+
       <v-list-item
         href="/#/ecn"
         prepend-icon="mdi-wrench-check"
         title="ECN/CCN"
         value="ecn"
       ></v-list-item>
-      <!-- <v-list-item href="/#/ccn" prepend-icon="mdi-wrench-check-outline" title="CCN" value="home"></v-list-item> -->
       <v-list-item
         href="/#/manpower"
         prepend-icon="mdi-account-group"
@@ -155,13 +170,6 @@
           value="file-document"
         ></v-list-item>
 
-        <!-- <v-list-item
-          prepend-icon="mdi-file-document"
-          href="/#/manpower"
-          title="Report Done MP"
-          value="file-document"
-        ></v-list-item> -->
-
         <v-list-item
           prepend-icon="mdi-file-document"
           href="/#/outsporeport"
@@ -175,54 +183,85 @@
           title="Report MP"
           value="file-document"
         ></v-list-item>
-
-        <!-- <v-list-item prepend-icon="mdi-file-document" href="/#/outsplan" title="Outs Plan"
-                value="file-document"></v-list-item> -->
-
-        <!-- <v-list-item
-          prepend-icon="mdi-file-document"
-          href="/#/ecnccnreport"
-          title="ECN/CCN Report"
-          value="file-document"
-        ></v-list-item>
-
-        <v-list-item
-          prepend-icon="mdi-file-document"
-          href="/#/supportothers"
-          title="Support Others"
-          value="file-document"
-        ></v-list-item>
-
-        <v-list-item
-          href="/#/training"
-          prepend-icon="mdi-safety-goggles"
-          title="Training"
-          value="manpower"
-        ></v-list-item> -->
       </template>
 
       <v-list-item
         prepend-icon=""
-        @click="
-          () => {
-            logout();
-          }
-        "
+        @click="logout"
       >
-        <buttton class="btn btn-sm btn-danger">Logout</buttton>
+        <button class="btn btn-sm btn-danger">Logout</button>
       </v-list-item>
-
-      <!-- <v-list-item prepend-icon="mdi-account" title="My Account" value="account"></v-list-item>
-          <v-list-item prepend-icon="mdi-account-group-outline" title="Users" value="users"></v-list-item> -->
     </v-list>
   </v-navigation-drawer>
 </template>
-<script setup>
-import { ctx } from "./main";
 
+<script setup>
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ctx } from "./main";
+import axios from 'axios';
+
+const userRole = ref(localStorage.getItem("userRole") || null);
+let intervalId = null;
+
+// Watch untuk memastikan setiap perubahan pada userRole disimpan di localStorage
+watch(userRole, (newRole) => {
+  if (newRole) {
+    localStorage.setItem("userRole", newRole);
+  } else {
+    localStorage.removeItem("userRole");
+  }
+});
+
+// Menggunakan `userRole` ref dalam `ctx`
+ctx.userRole = userRole.value;
+
+// Fungsi untuk mendapatkan role pengguna dari backend
+const fetchUserRole = async () => {
+  const userId = localStorage.getItem("userId");
+  if (userId) {
+    try {
+      const roleResp = await axios.get(`${import.meta.env.VITE_APP_BASE_URL}/api/userroles/byUserId/${userId}`);
+      if (roleResp.data && roleResp.data.length > 0) {
+        userRole.value = roleResp.data[0].role; // Menyimpan `userRole` ke ref
+        ctx.userRole = userRole.value; // Menyimpan juga di `ctx`
+        console.log("Role berhasil diambil:", userRole.value); // Debugging Role
+      } else {
+        console.warn("Tidak ada data role yang ditemukan untuk user ini."); // Log ketika tidak ada role
+      }
+    } catch (error) {
+      console.error("Error fetching user role:", error);
+    }
+  }
+};
+
+// Fungsi untuk polling role pengguna setiap 5 detik
+const startPollingUserRole = () => {
+  intervalId = setInterval(() => {
+    fetchUserRole();
+  }, 5000);
+};
+
+// Mengambil data role saat mounted dan mulai polling
+onMounted(() => {
+  fetchUserRole();
+  startPollingUserRole();
+});
+
+// Bersihkan interval saat komponen tidak lagi digunakan
+onBeforeUnmount(() => {
+  if (intervalId) {
+    clearInterval(intervalId);
+  }
+});
+
+// Fungsi untuk logout dan membersihkan localStorage
 const logout = () => {
   localStorage.removeItem("token");
+  localStorage.removeItem("userId");
+  localStorage.removeItem("userRole");
+  userRole.value = null; // Menghapus userRole saat logout
   ctx.value.user = null;
   ctx.value.token = null;
+  ctx.value.userRole = null;
 };
 </script>

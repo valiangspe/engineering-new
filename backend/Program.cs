@@ -13,7 +13,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
+var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -319,6 +319,131 @@ app.MapPost("/api/deptconfigs", async (List<EngDeptConfig> deptConfig, AppDbCont
     return Results.Ok(deptConfig);
 });
 
+
+
+// app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, string? to, int? taskId, int? extInquiryId, bool? withUserNames, bool? excel, HttpContext httpContext, int? userId) =>
+// {
+//     DateTime? fromDate = null;
+//     DateTime? toDate = null;
+
+//     if (from != null && from != "")
+//     {
+//         fromDate = DateTime.Parse(from);
+//     }
+//     if (to != null && to != "")
+//     {
+//         toDate = DateTime.Parse(to);
+//     }
+
+//     // Query dasar untuk mendapatkan semua aktivitas dan task yang terkait
+//     var activitiesQuery = db.EngineeringActivities
+//             .Include(a => a.Tasks)
+//                 .ThenInclude(t => t.InCharges)
+//             .AsQueryable();
+
+//     // Filter berdasarkan `taskId` jika diberikan
+//     if (taskId != null)
+//     {
+//         activitiesQuery = activitiesQuery.Where(a => a.Tasks.Any(t => t.Id == taskId));
+//     }
+
+//     // Filter berdasarkan tanggal jika `fromDate` dan/atau `toDate` diberikan
+//     if (fromDate != null)
+//     {
+//         activitiesQuery = activitiesQuery.Where(a => a.ToCache >= fromDate);
+//     }
+//     if (toDate != null)
+//     {
+//         activitiesQuery = activitiesQuery.Where(a => a.FromCache <= toDate);
+//     }
+
+//     // Filter berdasarkan `extInquiryId` jika diberikan
+//     if (extInquiryId != null && extInquiryId != 0)
+//     {
+//         activitiesQuery = activitiesQuery.Where(a => a.ExtInquiryId == extInquiryId);
+//     }
+
+//     // Eksekusi query dan filter berdasarkan `userId` jika diberikan
+//     var activities = (await activitiesQuery.ToListAsync()).Where(a =>
+//     {
+//         if (userId != null)
+//         {
+//             return a.Tasks?.Any(t => t.InCharges.Any(ic => ic.ExtUserId == userId)) ?? false;
+//         }
+//         return true;
+//     }).ToList();
+
+//     // Sertakan nama pengguna jika `withUserNames` diatur ke `true`
+//     if (withUserNames == true)
+//     {
+//         var users = await Fetcher.fetchUsersAsync();
+//         activities.ForEach(a =>
+//         {
+//             a.Tasks.ForEach(t =>
+//             {
+//                 t.InCharges.ForEach(c =>
+//                 {
+//                     var foundUser = users.FirstOrDefault(u => u.Id == c.ExtUserId);
+//                     c.PicName = foundUser?.Name ?? "";
+//                 });
+//             });
+//         });
+//     }
+
+//     // Jika opsi `excel` aktif, ekspor data ke Excel
+//     if (excel == true)
+//     {
+//         using var workbook = new XLWorkbook();
+//         var worksheet = workbook.Worksheets.Add("Activities");
+
+//         var pos = await Fetcher.fetchCrmPurchaseOrdersAsync();
+//         var inqs = await Fetcher.fetchCrmInquiriesAsync();
+
+//         worksheet.Cell(1, 1).Value = "Task Name";
+//         worksheet.Cell(1, 2).Value = "Type";
+//         worksheet.Cell(1, 3).Value = "PO";
+//         worksheet.Cell(1, 4).Value = "Inq";
+//         worksheet.Cell(1, 5).Value = "Quo";
+//         worksheet.Cell(1, 6).Value = "In Charge";
+//         worksheet.Cell(1, 7).Value = "Hours";
+//         worksheet.Cell(1, 8).Value = "Start Date";
+//         worksheet.Cell(1, 9).Value = "End Date";
+
+//         int row = 2;
+//         foreach (var activity in activities)
+//         {
+//             var foundPO = pos.FirstOrDefault(p => p.Id == activity.ExtPurchaseOrderId);
+//             var foundInq = inqs.FirstOrDefault(p => p.Id == activity.ExtInquiryId);
+
+//             foreach (var task in activity.Tasks.Where(t => t.DeletedAt == null).ToList())
+//             {
+//                 worksheet.Cell(row, 1).Value = task.Description;
+//                 worksheet.Cell(row, 2).Value = $"{activity.Type}";
+//                 worksheet.Cell(row, 3).Value = $"{foundPO?.purchaseOrderNumber} ({foundPO?.Account?.Name})";
+//                 worksheet.Cell(row, 4).Value = $"{foundInq?.InquiryNumber} ({foundInq?.Account?.Name})";
+//                 worksheet.Cell(row, 5).Value = foundInq?.Quotation?.Name;
+//                 worksheet.Cell(row, 6).Value = string.Join(", ", task.InCharges?.Select(i => i.PicName) ?? []);
+//                 worksheet.Cell(row, 7).Value = task.Hours;
+//                 worksheet.Cell(row, 8).Value = activity.FromCache?.ToString("yyyy-MM-dd");
+//                 worksheet.Cell(row, 9).Value = activity.ToCache?.ToString("yyyy-MM-dd");
+
+//                 row++;
+//             }
+//         }
+
+//         using var stream = new MemoryStream();
+//         workbook.SaveAs(stream);
+//         stream.Position = 0;
+
+//         httpContext.Response.Headers.Add("Content-Disposition", "attachment; filename=activities.xlsx");
+//         return Results.File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "activities.xlsx");
+//     }
+
+//     return Results.Ok(activities);
+// });
+
+
+
 app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, string? to, int? extInquiryId, bool? withUserNames, bool? excel, HttpContext httpContext, int? userId) =>
 {
 
@@ -461,6 +586,8 @@ app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, st
 
 });
 
+
+
 app.MapGet("/api/dashboard/activities/{id}", async (AppDbContext db, int id) =>
 db.EngineeringActivities
 .Include(a => a.Tasks)
@@ -485,7 +612,6 @@ app.MapGet("/api/dashboard/activities/test", async (AppDbContext db) =>
 
     return res;
 });
-
 app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, AppDbContext db) =>
 {
     var tasksSortedFrom = activity.Tasks?.Where(t => t.From != null && t.DeletedAt == null)?.ToList();
@@ -503,6 +629,145 @@ app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, Ap
     db.Update(activity);
     await db.SaveChangesAsync();
 });
+
+// app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, AppDbContext db, HttpContext httpContext) =>
+// {
+//     var currentUser = await Fetcher.fetchUsersAsync();  // Ambil pengguna yang sedang login, atau gunakan userId yang relevan
+//     var loggedInUserId = currentUser?.FirstOrDefault()?.Id;  // Ambil ID user yang login dari `httpContext` atau fetcher
+    
+//     foreach (var task in activity.Tasks)
+//     {
+//         if (task.CompletedDatePic.HasValue)
+//         {
+//             task.CompletedByPicId = loggedInUserId;  // Simpan user ID yang melakukan PIC done
+//         }
+//         if (task.CompletedDateSpv.HasValue)
+//         {
+//             task.CompletedBySpvId = loggedInUserId;  // Simpan user ID yang melakukan SPV done
+//         }
+//         if (task.CompletedDateManager.HasValue)
+//         {
+//             task.CompletedByManagerId = loggedInUserId;  // Simpan user ID yang melakukan Manager done
+//         }
+//     }
+
+//     db.Update(activity);
+//     await db.SaveChangesAsync();
+
+//     return Results.Ok(activity);
+// });
+
+
+
+// GET: api/UserRole
+app.MapGet("/api/userroles", async (AppDbContext db) =>
+    await db.UserRoles.ToListAsync());
+
+
+
+// get by user id 
+// GET: api/UserRole/byUserId/5
+app.MapGet("/api/userroles/byUserId/{userId}", async (AppDbContext db, int userId) =>
+{
+    var userRoles = await db.UserRoles
+        .Where(ur => ur.UserId == userId)
+        .ToListAsync();
+
+    if (userRoles == null || !userRoles.Any())
+    {
+        return Results.NotFound(new { message = "User roles not found for this userId" });
+    }
+
+    return Results.Ok(userRoles);
+});
+
+// GET: api/UserRole/5
+app.MapGet("/api/userroles/{id}", async (AppDbContext db, int id) =>
+{
+    var userRole = await db.UserRoles.FindAsync(id);
+
+    if (userRole == null)
+    {
+        return Results.NotFound(new { message = "User role not found" });
+    }
+
+    return Results.Ok(userRole);
+});
+
+// POST: api/UserRole
+app.MapPost("/api/userroles", async (AppDbContext db, UserRole userRole) =>
+{
+    db.UserRoles.Add(userRole);
+    try
+    {
+        await db.SaveChangesAsync();
+    }
+    catch (Exception ex)
+    {
+        // Mengganti StatusCode dengan Problem untuk menampilkan pesan error
+        // return Results.Problem("Error creating user role", statusCode: 500, detail: ex.Message);
+    }
+
+    return Results.Created($"/api/userroles/{userRole.Id}", userRole);
+});
+
+
+// PUT: api/UserRole/5
+app.MapPut("/api/userroles/{id}", async (AppDbContext db, int id, UserRole userRole) =>
+{
+    if (id != userRole.Id)
+    {
+        return Results.BadRequest(new { message = "UserRole ID mismatch" });
+    }
+
+    db.Entry(userRole).State = EntityState.Modified;
+
+    try
+    {
+        await db.SaveChangesAsync();
+    }
+    catch (DbUpdateConcurrencyException)
+    {
+        if (!db.UserRoles.Any(e => e.Id == id))
+        {
+            return Results.NotFound(new { message = "UserRole not found" });
+        }
+        else
+        {
+            // Mengganti StatusCode dengan Problem untuk menampilkan pesan error
+            // return Results.Problem("Error updating user role", statusCode: 500);
+        }
+    }
+
+    return Results.NoContent();
+});
+
+// DELETE: api/UserRole/5
+app.MapDelete("/api/userroles/{id}", async (AppDbContext db, int id) =>
+{
+    var userRole = await db.UserRoles.FindAsync(id);
+    if (userRole == null)
+    {
+        return Results.NotFound(new { message = "UserRole not found" });
+    }
+
+    db.UserRoles.Remove(userRole);
+    try
+    {
+        await db.SaveChangesAsync();
+    }
+    catch (Exception ex)
+    {
+        // Mengganti StatusCode dengan Problem untuk menampilkan pesan error
+        // return Results.Problem("Error deleting user role", statusCode: 500, detail: ex.Message);
+    }
+
+    return Results.NoContent();
+});
+
+
+// ended endpoint
+
 
 
 
@@ -780,27 +1045,35 @@ namespace SupportReportAPI.Models
 
     }
     public class Task : BaseModel
-    {
-        [Key]
-        public int? Id { get; set; }
-        public string? Description { get; set; }
-        public EngineeringActivity? EngineeringActivity { get; set; }
-        public int? EngineeringActivityId { get; set; }
+{
+    [Key]
+    public int? Id { get; set; }
+    public string? Description { get; set; }
+    public EngineeringActivity? EngineeringActivity { get; set; }
+    public int? EngineeringActivityId { get; set; }
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public List<InCharge>? InCharges { get; set; }
+    public double? Hours { get; set; }
 
-        public DateTime? From { get; set; }
-        public DateTime? To { get; set; }
+    // Field existing untuk completed date
+    public DateTime? CompletedDateSpv { get; set; }
+    public DateTime? CompletedDatePic { get; set; }
+    public DateTime? CompletedDateManager { get; set; }
 
-        public List<InCharge>? InCharges { get; set; }
-        public double? Hours { get; set; }
-        public DateTime? CompletedDate { get; set; }
-        public DateTime? CompletedDatePic { get; set; }
-        public DateTime? CompletedDateManager { get; set; }
+    // Field baru untuk menyimpan user ID yang melakukan "done"
+    public int? CompletedByPicId { get; set; }
+    public int? CompletedBySpvId { get; set; }
+    public int? CompletedByManagerId { get; set; }
 
+    // Field existing lainnya
+    public string? Remark { get; set; }
+    public int? ExtPanelCodeId { get; set; }
 
-        public string? Remark { get; set; }
-        public int? ExtPanelCodeId { get; set; }
+    // Field baru untuk soft delete
+    public DateTime? DeletedAt { get; set; }
+}
 
-    }
     public class InCharge : BaseModel
     {
         [Key]
@@ -861,7 +1134,7 @@ namespace SupportReportAPI.Models
         public DbSet<InCharge> InCharges { get; set; }
         public DbSet<BomApproval> BomApprovals { get; set; }
         public DbSet<BomApprovalPic> BomApprovalPics { get; set; }
-
+        public DbSet<UserRole> UserRoles { get; set; }
 
         public override int SaveChanges()
         {
@@ -1028,4 +1301,11 @@ public class Quotation
 {
     public int? Id { get; set; }
     public string? Name { get; set; }
+}
+
+public class UserRole
+{
+    public int Id { get; set; }        // Primary key
+    public int UserId { get; set; }     // UserId untuk relasi ke tabel pengguna
+    public string Role { get; set; }    // Role yang dimiliki pengguna (PIC, SPV, Manager)
 }

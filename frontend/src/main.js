@@ -1,9 +1,13 @@
 import { createApp, ref } from "vue";
 // import './style.css'
 import App from "./App.vue";
+// pinia
+import { createPinia } from "pinia";
+
 // Vuetify
 import "vuetify/styles";
 
+import role from "../src/pages/addRole.vue"
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 
@@ -36,6 +40,8 @@ import ECNApproval from "./pages/ECNApproval.vue";
 import BOMApproval from "./pages/BOMApproval.vue";
 import BOMApprovalDetail from "./pages/BOMApprovalDetail.vue";
 import DeptTemplatePage from "./pages/DeptTemplatePage.vue";
+// import NotificationsPage from "./pages/Notifications.vue";
+import NotificationsPage from "./pages/Notifications.vue";
 import AIDocumentAnalyzerPage from "./pages/AIDocumentAnalyzerPage.vue";
 import AIDocumentAnalyzerInqPage from "./pages/AIDocumentAnalyzerInqPage.vue";
 
@@ -66,14 +72,21 @@ const routes = [
   { path: "/wo", component: Activity },
   { path: "/bomapproval", component: BOMApproval },
   { path: "/bomapproval/:id", component: BOMApprovalDetail },
+
   { path: "/ai-document-analyzer/:id", component: AIDocumentAnalyzerPage },
   { path: "/ai-document-analyzer-inq", component: AIDocumentAnalyzerInqPage },
+
+  { path: "/notifications", component: NotificationsPage },
+
+  { path: "/addRole", component: role},
 ];
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes,
 });
+// const app = createApp(App);
+const pinia = createPinia();
 
 export const ctx = ref({
   drawer: false,
@@ -113,4 +126,4 @@ const vuetify = createVuetify({
   ctx.value.users = users;
 })();
 
-createApp(App).use(vuetify).use(router).mount("#app");
+createApp(App).use(vuetify).use(router).use(pinia).mount("#app");

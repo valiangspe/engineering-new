@@ -103,6 +103,10 @@
           style="resize: vertical; height: 75vh"
         >
           <table class="table table-sm" style="border-collapse: separate">
+           
+           <thead>
+
+           
             <tr>
               <th
                 v-for="h in [
@@ -121,6 +125,8 @@
                 {{ h }}
               </th>
             </tr>
+          </thead>
+          <tbody>
             <tr v-for="(d, i) in activitiesMapped">
               <template
                 v-for="dx in [
@@ -199,6 +205,7 @@
                 </td>
               </template>
             </tr>
+          </tbody>
           </table>
         </div>
       </v-col>

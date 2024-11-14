@@ -1,6 +1,5 @@
 <script setup>
-import { ref, computed , onMounted} from "vue";
-// import { ref } from "vue";
+import { ref } from "vue";
 import {
   fetchDepartments,
   fetchEngineeringActivities,
@@ -13,107 +12,8 @@ import {
 } from "./fetchers";
 import { intlFormat, makeDateString } from "../helpers";
 import chroma from "chroma-js";
-import { ctx } from "../main";  // Mengimpor ctx untuk mendapatkan role pengguna
-import { useNotificationStore } from "./notificationStore";
-import { v4 as uuidv4 } from 'uuid'; // Tambahkan UUID untuk id unik
-import { useRoute } from "vue-router";
+import { ctx } from "../main";
 
-
-// import { useRoute } from "vue-router";  // Menambahkan import useRoute
-
-// Metode untuk mengambil engineeringActivityId berdasarkan taskId
-const getEngineeringActivityIdByTaskId = (taskId) => {
-  for (const activity of activities.value) {
-    if (activity.tasks.some(task => task.id === taskId)) {
-      return activity.id; // Kembalikan ID dari engineering activity
-    }
-  }
-  console.warn(`Engineering activity dengan task ID ${taskId} tidak ditemukan.`);
-  return null; // Kembalikan null jika tidak ditemukan
-};
-
-
-
-
-
-// Ambil data role dari `ctx` dan `localStorage`
-const userRoles = computed(() => {
-  const ctxRole = ctx?.userRole ? [ctx.userRole] : [];
-  const localStorageRole = localStorage.getItem("userRole") ? [localStorage.getItem("userRole")] : [];
-  return [...new Set([...ctxRole, ...localStorageRole])];
-});
-
-
-
-
-// Memuat data aktivitas saat halaman dimuat dan memeriksa apakah ada query taskId
-onMounted(() => {
-  const taskId = route.query.taskId;
-  if (taskId) {
-    openTaskById(taskId);
-  }
-});
-
-
-const openTaskById = (taskId) => {
-  const foundActivity = activities.value.find(activity => 
-    activity.tasks.some(task => task.id === taskId)
-  );
-  
-  if (foundActivity) {
-    selectedActivity.value = foundActivity;
-    dialog.value = true;
-  } else {
-    console.warn(`Task dengan ID ${taskId} tidak ditemukan.`);
-  }
-};
-
-
-// Fungsi untuk memuat data aktivitas
-const fetchEngineeringActivitiesData = async () => {
-  const d = await fetchEngineeringActivities({
-    from: new Date(`${from.value}T00:00:00`).toISOString(),
-    to: new Date(`${to.value}T23:59:39`).toISOString(),
-    userId: selectedFilterUser.value?.id,
-  });
-  activities.value = d;
-};
-
-
-
-const undoDone = async (task, role) => {
-  try {
-    let previousRole = null;
-
-    if (role === 'spv') {
-      previousRole = 'pic';
-    } else if (role === 'manager') {
-      previousRole = 'spv';
-    }
-
-    // Update notification store dengan role sebelumnya atau set ulang ke null
-    const notificationStore = useNotificationStore();
-    notificationStore.updateNotification(task, previousRole);
-
-    // Simpan perubahan ke backend jika diperlukan
-    await fetch(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/tasks/${task.id}`,
-      {
-        method: 'put',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(task),
-      }
-    );
-
-    console.log(`Task ID ${task.id} undone for role: ${role}`);
-  } catch (error) {
-    console.error('Error undoing task done status:', error);
-  }
-};
-
-
-
-const route = useRoute(); // Menangkap route untuk query parameter
 const activities = ref([]);
 const users = ref([]);
 const departments = ref([]);
@@ -132,7 +32,6 @@ const defaultForm = {
 
 const form = ref({ ...defaultForm });
 
-// const users = ref([{ id: 1, name: "valian" }]);
 const activityTypes = ref(["PrePO", "PostPO", "Others"]);
 const inCharges = ref([{ name: "John" }, { name: "Doe" }]);
 const selectedInCharges = ref([]);
@@ -181,10 +80,6 @@ const removeTask = (index) => {
   };
 };
 
-// const submit = handleSubmit((values) => {
-//   console.log("Form submitted:", values);
-// });
-
 const fetchUsersData = async () => {
   const d = await fetchUsers();
   console.log("users", d);
@@ -202,131 +97,38 @@ const fetchDepartmentsData = async () => {
   departments.value = d;
 };
 
-// const fetchEngineeringActivitiesData = async () => {
-//   const d = await fetchEngineeringActivities({
-//     from: new Date(`${from.value}T00:00:00`).toISOString(),
-//     to: new Date(`${to.value}T23:59:39`).toISOString(),
-//     userId: selectedFilterUser.value?.id,
-//   });
-//   activities.value = d;
-// };
+const fetchEngineeringActivitiesData = async () => {
+  const d = await fetchEngineeringActivities({
+    from: new Date(`${from.value}T00:00:00`).toISOString(),
+    to: new Date(`${to.value}T23:59:39`).toISOString(),
+    userId: selectedFilterUser.value?.id,
+  });
+  activities.value = d;
+};
 
 const fetchWoTemplatesData = async () => {
   const d = await fetchWoTemplates();
   woTemplates.value = d;
 };
 
-const handleDone = async (task, role) => {
-  try {
-    let nextRole = null;
-
-    if (role === 'pic' && task.completedDatePic) {
-      nextRole = 'spv';
-    } else if (role === 'spv' && task.completedDateSpv) {
-      nextRole = 'manager';
-    } else if (role === 'manager' && task.completedDateManager) {
-      nextRole = null;
-    }
-
-    const notificationStore = useNotificationStore();
-    notificationStore.updateNotification(task, nextRole);
-
-    if (nextRole) {
-      notificationStore.addNotification({
-        id: uuidv4(),
-        title: `Task Update: ${task.description}`,
-        message: `Task dengan ID ${task.id} siap untuk dilakukan "done" oleh ${nextRole.toUpperCase()}.`,
-        role: nextRole,
-        taskId: task.id,
-        createdAt: new Date().toLocaleString('id-ID', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        }),
-      });
-    }
-
-    console.log(`Task ID ${task.id} updated successfully`);
-  } catch (error) {
-    console.error('Error updating task:', error);
-  }
-};
-
-
-
 const handleSave = async () => {
   console.log(form.value);
   try {
-    const updatedTasks = form.value.tasks.map((task) => {
-      let updatedTask = { ...task };
-
-      // Jangan mengubah status 'done' saat mengedit
-      if (!task.completedDatePic) {
-        updatedTask.completedByPicId = task.completedByPicId || null;
-        updatedTask.completedDatePic = task.completedDatePic || null;
-      }
-      if (!task.completedDateSpv) {
-        updatedTask.completedBySpvId = task.completedBySpvId || null;
-        updatedTask.completedDateSpv = task.completedDateSpv || null;
-      }
-      if (!task.completedDateManager) {
-        updatedTask.completedByManagerId = task.completedByManagerId || null;
-        updatedTask.completedDateManager = task.completedDateManager || null;
-      }
-
-      return updatedTask;
-    });
-
-    const updatedForm = {
-      ...form.value,
-      tasks: updatedTasks,
-    };
-
     const resp = await fetch(
       `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities`,
       {
         method: "post",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(updatedForm),
+        body: JSON.stringify(form.value),
       }
     );
-
-    if (resp.ok) {
-      // Bagian notifikasi dihapus untuk mencegah pengiriman notifikasi
-      /*
-      const notificationStore = useNotificationStore();
-      updatedTasks.forEach((task) => {
-        let nextRole = !task.completedDatePic ? 'pic'
-                     : !task.completedDateSpv ? 'spv'
-                     : !task.completedDateManager ? 'manager'
-                     : null;
-
-        // Tambahkan notifikasi untuk role berikutnya
-        if (nextRole) {
-          notificationStore.addNotification({
-            ...task,
-            id: uuidv4(),
-            role: nextRole,
-          });
-        }
-      });
-      */
-    }
 
     dialog.value = false;
     form.value = { ...defaultForm };
 
     fetchEngineeringActivitiesData();
-  } catch (e) {
-    console.error("Error saat menyimpan task:", e);
-  }
+  } catch (e) {}
 };
-
-
 
 fetchUsersData();
 fetchEngineeringActivitiesData();
@@ -338,6 +140,30 @@ fetchPosData();
 
 const alertx = (content) => {
   alert(content);
+};
+
+const markTaskDone = (task, role) => {
+  const currentUserRole = ctx.value.userRole;
+  const currentUserName = ctx.value.user?.username;
+
+  if (currentUserRole === role) {
+    const currentDate = new Date();
+    const formattedDate = `${currentDate.toLocaleString('id-ID', {
+      weekday: 'long',
+    })}, ${currentDate.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })}, ${currentDate.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })}`;
+
+    task.completedDate = currentDate.toISOString();
+    task.doneDescription = `${formattedDate} - Done by: ${currentUserName} | ${role}`;
+  } else {
+    alert("You do not have permission to mark this task as done.");
+  }
 };
 </script>
 <template>
@@ -434,9 +260,6 @@ const alertx = (content) => {
       style="height: 60vh; resize: vertical"
     >
       <table class="table table-sm" style="border-collapse: separate">
-        <thead>
-          
-       
         <tr>
           <th
             style="position: sticky; top: 0"
@@ -459,10 +282,6 @@ const alertx = (content) => {
             {{ h }}
           </th>
         </tr>
-      </thead>
-      <tbody>
-
-     
         <tr v-for="(a, i) in activities">
           <template
             v-for="d in [
@@ -584,7 +403,6 @@ const alertx = (content) => {
             </td>
           </template>
         </tr>
-      </tbody>
       </table>
     </div>
   </div>
@@ -604,10 +422,12 @@ const alertx = (content) => {
           <div class="w-100">
             <div class="d-flex">
               <div class="mx-2">
-                <button class="btn btn-sm btn-primary" @click="() => handleSave()">
-  <v-icon icon="mdi-content-save" /> Save
-</button>
-
+                <button
+                  class="btn btn-sm btn-primary"
+                  @click="() => handleSave()"
+                >
+                  <v-icon icon="mdi-content-save" /> Save
+                </button>
               </div>
               <div class="mx-2">
                 <button class="btn btn-sm btn-danger" @click="dialog = false">
@@ -901,143 +721,102 @@ const alertx = (content) => {
                         />
                       </td>
                      
-                 <!-- Done PIC -->
-
-<!-- Done PIC -->
-<!-- <td class="border border-dark">
-  <div
-    v-if="
-      !task.completedDatePic &&
-      userRoles.includes('pic') &&
-      task.inCharges.some(ic => ic.extUserId === ctx.user.id)
-    "
-  >
+                      <td class="border border-dark">
+  <div class="d-flex">
     <input
       type="date"
       class="form-control form-control-sm"
+      :value="task?.completedDatePic?.split('T')?.[0]"
+      :disabled="ctx.value.userRole !== 'PIC'"
+      v-if="ctx.value.userRole === 'PIC'"
       @blur="
         (e) => {
-          task.completedDatePic = new Date().toISOString();
-          task.completedByPicId = ctx?.user?.id;
-          handleDone(task, 'pic'); // Notify and move to the next role
+          if (ctx.value.userRole === 'PIC') {
+            task.completedDatePic = `${e.target.value}T00:00:00Z`;
+          }
         }
       "
     />
-  </div>
-  <div v-else-if="task.completedDatePic">
-    {{ new Date(task.completedDatePic).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || PIC
-    <button
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDatePic = null;
-          task.completedByPicId = null;
-          undoDone(task, 'pic'); // Undo action and update notification
-        }
-      "
-    >
-      Undo
-    </button>
-  </div>
-</td> -->
-
-
-<td class="border border-dark">
-  <div v-if="!task.completedDatePic && userRoles.includes('pic')">
-    <input
-      type="date"
-      class="form-control form-control-sm"
-      @blur="
-        (e) => {
-          task.completedDatePic = new Date().toISOString();
-          task.completedByPicId = ctx?.user?.id;
-          handleDone(task, 'pic'); // Notify and move to the next role
-        }
-      "
-    />
-  </div>
-  <div v-else-if="task.completedDatePic">
-    {{ new Date(task.completedDatePic).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || PIC
-    <button
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDatePic = null;
-          task.completedByPicId = null;
-          undoDone(task, 'pic'); // Undo action and update notification
-        }
-      "
-    >
-      Undo
-    </button>
+    <div v-if="task?.completedDatePic && ctx.value.userRole === 'PIC'">
+      <button
+        class="btn btn-sm btn-secondary"
+        @click="
+          () => {
+            if (ctx.value.userRole === 'PIC') {
+              task.completedDatePic = null;
+            }
+          }
+        "
+      >
+        Undo
+      </button>
+    </div>
   </div>
 </td>
 
-<!-- Done SPV -->
 <td class="border border-dark">
-  <div v-if="!task.completedDateSpv && task.completedDatePic && userRoles.includes('spv')">
+  <div class="d-flex">
     <input
       type="date"
       class="form-control form-control-sm"
+      :value="task?.completedDate?.split('T')?.[0]"
+      :disabled="ctx.value.userRole !== 'SPV'"
+      v-if="ctx.value.userRole === 'SPV'"
       @blur="
         (e) => {
-          task.completedDateSpv = new Date().toISOString();
-          task.completedBySpvId = ctx?.user?.id;
-          handleDone(task, 'spv'); // Notify and move to the next role
+          if (ctx.value.userRole === 'SPV') {
+            task.completedDate = `${e.target.value}T00:00:00Z`;
+          }
         }
       "
     />
-  </div>
-  <div v-else-if="task.completedDateSpv">
-    {{ new Date(task.completedDateSpv).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || SPV
-    <button
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDateSpv = null;
-          task.completedBySpvId = null;
-          undoDone(task, 'spv'); // Undo action and update notification
-        }
-      "
-    >
-      Undo
-    </button>
+    <div v-if="task?.completedDate && ctx.value.userRole === 'SPV'">
+      <button
+        class="btn btn-sm btn-secondary"
+        @click="
+          () => {
+            if (ctx.value.userRole === 'SPV') {
+              task.completedDate = null;
+            }
+          }
+        "
+      >
+        Undo
+      </button>
+    </div>
   </div>
 </td>
 
-<!-- Done Manager -->
 <td class="border border-dark">
-  <div v-if="!task.completedDateManager && task.completedDateSpv && userRoles.includes('manager')">
+  <div class="d-flex">
     <input
       type="date"
       class="form-control form-control-sm"
+      :value="task?.completedDateManager?.split('T')?.[0]"
+      :disabled="ctx.value.userRole !== 'Manager'"
+      v-if="ctx.value.userRole === 'Manager'"
       @blur="
         (e) => {
-          task.completedDateManager = new Date().toISOString();
-          task.completedByManagerId = ctx?.user?.id;
-          handleDone(task, 'manager'); // Notify task completion
+          if (ctx.value.userRole === 'Manager') {
+            task.completedDateManager = `${e.target.value}T00:00:00Z`;
+          }
         }
       "
     />
-  </div>
-  <div v-else-if="task.completedDateManager">
-    {{ new Date(task.completedDateManager).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || Manager
-    <button
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDateManager = null;
-          task.completedByManagerId = null;
-          undoDone(task, 'manager'); // Undo action and update notification
-        }
-      "
-    >
-      Undo
-    </button>
+    <div v-if="task?.completedDateManager && ctx.value.userRole === 'Manager'">
+      <button
+        class="btn btn-sm btn-secondary"
+        @click="
+          () => {
+            if (ctx.value.userRole === 'Manager') {
+              task.completedDateManager = null;
+            }
+          }
+        "
+      >
+        Undo
+      </button>
+    </div>
   </div>
 </td>
 
