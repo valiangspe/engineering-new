@@ -70,6 +70,13 @@
       ></v-list-item>
 
       <v-list-item
+          prepend-icon="mdi-file-document"
+          href="/#/loadpekerjaan"
+          title="engineer time procces"
+          value="file-document"
+        ></v-list-item>
+
+      <v-list-item
         href="/#/ecn"
         prepend-icon="mdi-wrench-check"
         title="ECN/CCN"

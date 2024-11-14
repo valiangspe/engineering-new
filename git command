@@ -1,3 +1,6 @@
 git add .
 git commit -m 'commit message'
 git push origin main
+
+tiap ganti model, tambah field, run:
+dotnet ef migrations add tambah_field_abc
