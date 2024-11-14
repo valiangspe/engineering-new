@@ -74,6 +74,20 @@
         value="bomapproval"
       ></v-list-item>
 
+      <v-list-item
+        href="/#/ai-document-analyzer-inq"
+        prepend-icon="mdi-file-document"
+        title="AI Document Analyzer Inq"
+        value="ai-document-analyzer"
+      ></v-list-item>
+
+      <v-list-item
+        href="/#/ai-document-analyzer"
+        prepend-icon="mdi-file-document"
+        title="AI Document Analyzer"
+        value="ai-document-analyzer"
+      ></v-list-item>
+
       <a href="https://eng.iotech.my.id" target="_blank">
         <v-list-item
           prepend-icon="mdi-file-document"

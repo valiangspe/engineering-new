@@ -36,6 +36,8 @@ import ECNApproval from "./pages/ECNApproval.vue";
 import BOMApproval from "./pages/BOMApproval.vue";
 import BOMApprovalDetail from "./pages/BOMApprovalDetail.vue";
 import DeptTemplatePage from "./pages/DeptTemplatePage.vue";
+import AIDocumentAnalyzerPage from "./pages/AIDocumentAnalyzerPage.vue";
+import AIDocumentAnalyzerInqPage from "./pages/AIDocumentAnalyzerInqPage.vue";
 
 const routes = [
   // dynamic segments start with a colon
@@ -64,6 +66,8 @@ const routes = [
   { path: "/wo", component: Activity },
   { path: "/bomapproval", component: BOMApproval },
   { path: "/bomapproval/:id", component: BOMApprovalDetail },
+  { path: "/ai-document-analyzer/:id", component: AIDocumentAnalyzerPage },
+  { path: "/ai-document-analyzer-inq", component: AIDocumentAnalyzerInqPage },
 ];
 
 const router = createRouter({
