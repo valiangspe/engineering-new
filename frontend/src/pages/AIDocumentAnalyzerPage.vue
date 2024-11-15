@@ -3,19 +3,25 @@ import { computed } from "@vue/reactivity";
 import { ref } from "vue";
 import VueMarkdown from "vue-markdown-render";
 import { useRoute } from "vue-router";
-import { fetchInquiries } from "./fetchers";
+import { fetchGenerations, fetchInquiries } from "./fetchers";
 
 const route = useRoute();
 const loading = ref(false);
 const result = ref("");
 const selectedModel = ref("gpt4");
 const inquiries = ref([] as any[]);
+const inquiryAIDocs = ref([] as any[]);
 
 const fetchInquiriesData = async () => {
   const d = await fetchInquiries();
   d.reverse();
   console.log("inquiries", d);
   inquiries.value = d;
+};
+const fetchGenerationsData = async () => {
+  const d = await fetchGenerations();
+  console.log("gens", d);
+  inquiryAIDocs.value = d;
 };
 
 const foundinquiry = computed(() => {
@@ -55,6 +61,23 @@ const handleFileUpload = (e: Event) => {
 
           if (d) {
             result.value = d?.results?.[0];
+
+            const newAiDoc = {
+              fileName: f.name,
+              content: result.value,
+              model: selectedModel.value,
+            };
+
+            const resp = await fetch(
+              `${import.meta.env.VITE_APP_BASE_URL}/generations`,
+              {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(newAiDoc),
+              }
+            );
+
+            fetchGenerationsData();
           }
         } catch (e) {
           console.error(e);
@@ -71,6 +94,7 @@ const handleFileUpload = (e: Event) => {
   }
 };
 
+fetchGenerationsData();
 fetchInquiriesData();
 </script>
 <template>
@@ -132,26 +156,54 @@ fetchInquiriesData();
       </div>
       <div><hr class="border border-dark" /></div>
 
-
-      <div
-        class="overflow-auto border border-dark"
-      >
+      <div class="overflow-auto border border-dark">
         <table class="table table-sm" style="border-collapse: separate">
           <tr>
             <th
               class="bg-dark text-light"
               style="position: sticky; top: 0"
-              v-for="h in ['#', 'ID', 'Inq Number', 'Title', 'Action']"
+              v-for="h in [
+                '#',
+                'ID',
+                'Model',
+                'File Name',
+                'No. of Words',
+                'Created',
+                'Action',
+              ]"
             >
               {{ h }}
             </th>
           </tr>
 
-          <tr v-for="(i, i_) in []">
+          <tr v-for="(i, i_) in inquiryAIDocs">
             <td class="border border-dark">{{ i_ + 1 }}</td>
             <td class="border border-dark">{{ i?.id }}</td>
+            <td class="border border-dark">{{ i?.model }}</td>
+            <td class="border border-dark">{{ i?.filename }}</td>
+            <td class="border border-dark">{{ i?.content?.length }}</td>
             <td class="border border-dark">
-              <div><button class="btn btn-sm btn-primary">Preview</button></div>
+              {{
+                Intl.DateTimeFormat("en-US", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }).format(new Date(i?.createdAt ?? ""))
+              }}
+            </td>
+
+            <td class="border border-dark">
+              <div>
+                <button
+                  class="btn btn-sm btn-primary"
+                  @click="
+                    () => {
+                      result = i?.content;
+                    }
+                  "
+                >
+                  Preview
+                </button>
+              </div>
             </td>
           </tr>
         </table>

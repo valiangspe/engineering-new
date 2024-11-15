@@ -143,18 +143,18 @@ export const fetchBomDetail = async (params) => {
   }
 };
 
-
 //BY TASK ID
 export const fetchActivityByTaskId = async (taskId) => {
-  const response = await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activityByTaskId?taskId=${taskId}`);
+  const response = await fetch(
+    `${
+      import.meta.env.VITE_APP_BASE_URL
+    }/api/dashboard/activityByTaskId?taskId=${taskId}`
+  );
   if (!response.ok) {
     throw new Error("Failed to fetch activity by task ID.");
   }
   return await response.json();
 };
-
-
-
 
 export const fetchUser = async (params) => {
   try {
@@ -191,9 +191,7 @@ export const getEngineeringActivitiesUrl = (params) =>
     params?.from ?? ""
   }&to=${params?.to ?? ""}${params?.excel ? `&excel=${params.excel}` : ""}${
     params?.withUserNames ? `&withUserNames=${params.withUserNames}` : ""
-  }${
-    params?.userId ? `&userId=${params.userId}` : ""
-  }`;
+  }${params?.userId ? `&userId=${params.userId}` : ""}`;
 
 export const fetchEngineeringActivities = async (params) => {
   try {
@@ -211,6 +209,20 @@ export const fetchBomApprovals = async (params) => {
   try {
     const resp = await fetch(
       `${import.meta.env.VITE_APP_BASE_URL}/bomapprovals`
+    );
+    if (resp.status !== 200) {
+      throw await resp.text();
+    }
+
+    return await resp.json();
+  } catch (error) {
+    return [];
+  }
+};
+export const fetchGenerations = async (params) => {
+  try {
+    const resp = await fetch(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/generations`
     );
     if (resp.status !== 200) {
       throw await resp.text();
