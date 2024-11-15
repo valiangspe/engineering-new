@@ -222,7 +222,9 @@ export const fetchBomApprovals = async (params) => {
 export const fetchGenerations = async (params) => {
   try {
     const resp = await fetch(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/generations`
+      `${import.meta.env.VITE_APP_BASE_URL}/api/generations?inquiryId=${
+        params?.inquiryId ?? ""
+      }`
     );
     if (resp.status !== 200) {
       throw await resp.text();

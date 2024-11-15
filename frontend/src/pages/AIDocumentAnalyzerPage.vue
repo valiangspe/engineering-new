@@ -19,7 +19,7 @@ const fetchInquiriesData = async () => {
   inquiries.value = d;
 };
 const fetchGenerationsData = async () => {
-  const d = await fetchGenerations();
+  const d = await fetchGenerations({ inquiryId: route.params?.id });
   console.log("gens", d);
   inquiryAIDocs.value = d;
 };
@@ -66,7 +66,15 @@ const handleFileUpload = (e: Event) => {
               fileName: f.name,
               content: result.value,
               model: selectedModel.value,
+              inquiryId: isNaN(parseInt(route.params?.id ?? ""))
+                ? null
+                : parseInt(route.params?.id ?? ""),
             };
+
+            if (!result.value || result.value === "") {
+              alert("Blank result retrieved.");
+              return;
+            }
 
             const resp = await fetch(
               `${import.meta.env.VITE_APP_BASE_URL}/generations`,
@@ -180,7 +188,7 @@ fetchInquiriesData();
             <td class="border border-dark">{{ i_ + 1 }}</td>
             <td class="border border-dark">{{ i?.id }}</td>
             <td class="border border-dark">{{ i?.model }}</td>
-            <td class="border border-dark">{{ i?.filename }}</td>
+            <td class="border border-dark">{{ i?.fileName }}</td>
             <td class="border border-dark">{{ i?.content?.length }}</td>
             <td class="border border-dark">
               {{
