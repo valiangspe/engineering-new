@@ -13,7 +13,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
+var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -234,7 +234,7 @@ app.MapPost("/bomapprovals", async (BomApproval bomApproval, AppDbContext db) =>
 
     Console.WriteLine(bomApproval.ExtBomLeveledId);
     Console.WriteLine(bomApproval.Pics?.Count);
-    
+
     // If bom approval has PIC, snpshot
     if ((bomApproval.Pics?.Count ?? 0) > 0)
     {
@@ -634,7 +634,7 @@ app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, Ap
 // {
 //     var currentUser = await Fetcher.fetchUsersAsync();  // Ambil pengguna yang sedang login, atau gunakan userId yang relevan
 //     var loggedInUserId = currentUser?.FirstOrDefault()?.Id;  // Ambil ID user yang login dari `httpContext` atau fetcher
-    
+
 //     foreach (var task in activity.Tasks)
 //     {
 //         if (task.CompletedDatePic.HasValue)
@@ -811,6 +811,76 @@ app.MapGet("/populate", async (AppDbContext dbContext) =>
         dbContext.SaveChanges();
     }
 });
+
+
+//panel process endpoint
+// Create a new PanelProcess
+app.MapPost("/panelprocess", async (PanelProcess panelProcess, AppDbContext db) =>
+{
+    db.PanelProcesses.Add(panelProcess);
+    await db.SaveChangesAsync();
+    return Results.Created($"/panelprocess/{panelProcess.Id}", panelProcess);
+});
+
+// Get all PanelProcesses
+app.MapGet("/panelprocess", async (AppDbContext db) =>
+    await db.PanelProcesses.ToListAsync());
+
+// Get a single PanelProcess by ID
+app.MapGet("/panelprocess/{id}", async (AppDbContext db, int id) =>
+{
+    var panelProcess = await db.PanelProcesses.FindAsync(id);
+    return panelProcess is not null ? Results.Ok(panelProcess) : Results.NotFound();
+});
+
+// Update a PanelProcess by ID
+app.MapPut("/panelprocess/{id}", async (int id, PanelProcess panelProcess, AppDbContext db) =>
+{
+    if (id != panelProcess.Id) return Results.BadRequest("ID mismatch.");
+
+    var existingPanelProcess = await db.PanelProcesses.FindAsync(id);
+    if (existingPanelProcess is null) return Results.NotFound("PanelProcess not found.");
+
+    existingPanelProcess.PanelType = panelProcess.PanelType;
+    existingPanelProcess.ProcessName = panelProcess.ProcessName;
+    existingPanelProcess.Minutes = panelProcess.Minutes;
+
+    await db.SaveChangesAsync();
+    return Results.Ok(existingPanelProcess);
+});
+
+// Delete a PanelProcess by ID
+app.MapDelete("/panelprocess/{id}", async (AppDbContext db, int id) =>
+{
+    var panelProcess = await db.PanelProcesses.FindAsync(id);
+    if (panelProcess is null) return Results.NotFound("PanelProcess not found.");
+
+    db.PanelProcesses.Remove(panelProcess);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
+
+app.MapGet("/api/generations", async (AppDbContext db, int? inquiryId) =>
+{
+    var generationQ = db.InquiryAIGenerations.AsQueryable();
+
+    if (inquiryId != null)
+    {
+        generationQ = generationQ.Where(i => i.InquiryId == inquiryId);
+    }
+
+    return generationQ.ToList();
+});
+
+
+app.MapPost("/generations", async (AppDbContext db, InquiryAIGeneration inq) =>
+{
+    db.InquiryAIGenerations.Add(inq);
+    await db.SaveChangesAsync();
+    return Results.Ok(inq);
+});
+
 
 
 app.Run();
@@ -1045,34 +1115,34 @@ namespace SupportReportAPI.Models
 
     }
     public class Task : BaseModel
-{
-    [Key]
-    public int? Id { get; set; }
-    public string? Description { get; set; }
-    public EngineeringActivity? EngineeringActivity { get; set; }
-    public int? EngineeringActivityId { get; set; }
-    public DateTime? From { get; set; }
-    public DateTime? To { get; set; }
-    public List<InCharge>? InCharges { get; set; }
-    public double? Hours { get; set; }
+    {
+        [Key]
+        public int? Id { get; set; }
+        public string? Description { get; set; }
+        public EngineeringActivity? EngineeringActivity { get; set; }
+        public int? EngineeringActivityId { get; set; }
+        public DateTime? From { get; set; }
+        public DateTime? To { get; set; }
+        public List<InCharge>? InCharges { get; set; }
+        public double? Hours { get; set; }
 
-    // Field existing untuk completed date
-    public DateTime? CompletedDateSpv { get; set; }
-    public DateTime? CompletedDatePic { get; set; }
-    public DateTime? CompletedDateManager { get; set; }
+        // Field existing untuk completed date
+        public DateTime? CompletedDateSpv { get; set; }
+        public DateTime? CompletedDatePic { get; set; }
+        public DateTime? CompletedDateManager { get; set; }
 
-    // Field baru untuk menyimpan user ID yang melakukan "done"
-    public int? CompletedByPicId { get; set; }
-    public int? CompletedBySpvId { get; set; }
-    public int? CompletedByManagerId { get; set; }
+        // Field baru untuk menyimpan user ID yang melakukan "done"
+        public int? CompletedByPicId { get; set; }
+        public int? CompletedBySpvId { get; set; }
+        public int? CompletedByManagerId { get; set; }
 
-    // Field existing lainnya
-    public string? Remark { get; set; }
-    public int? ExtPanelCodeId { get; set; }
+        // Field existing lainnya
+        public string? Remark { get; set; }
+        public int? ExtPanelCodeId { get; set; }
 
-    // Field baru untuk soft delete
-    public DateTime? DeletedAt { get; set; }
-}
+        // Field baru untuk soft delete
+        public DateTime? DeletedAt { get; set; }
+    }
 
     public class InCharge : BaseModel
     {
@@ -1114,6 +1184,17 @@ namespace SupportReportAPI.Models
         public int? Id { get; set; }
         public int? DepartmentId { get; set; }
     }
+    public class InquiryAIGeneration : BaseModel
+    {
+        [Key]
+        public int? Id { get; set; }
+        public string? FileName { get; set; }
+        public string? Model { get; set; }
+        public int? InquiryId { get; set; }
+        public string? Content { get; set; }
+
+    }
+
 
     public class AppDbContext : DbContext
     {
@@ -1135,6 +1216,9 @@ namespace SupportReportAPI.Models
         public DbSet<BomApproval> BomApprovals { get; set; }
         public DbSet<BomApprovalPic> BomApprovalPics { get; set; }
         public DbSet<UserRole> UserRoles { get; set; }
+        public DbSet<PanelProcess> PanelProcesses { get; set; }
+        public DbSet<InquiryAIGeneration> InquiryAIGenerations { get; set; }
+
 
         public override int SaveChanges()
         {
@@ -1308,4 +1392,12 @@ public class UserRole
     public int Id { get; set; }        // Primary key
     public int UserId { get; set; }     // UserId untuk relasi ke tabel pengguna
     public string Role { get; set; }    // Role yang dimiliki pengguna (PIC, SPV, Manager)
+}
+public class PanelProcess
+{
+    [Key]
+    public int Id { get; set; } // Primary key for identification
+    public string PanelType { get; set; } = string.Empty;
+    public string ProcessName { get; set; } = string.Empty;
+    public double Minutes { get; set; }
 }

@@ -81,7 +81,7 @@ fetchInquiriesData();
       style="height: 75vh; resize: vertical"
     >
       <table class="table table-sm" style="border-collapse: separate">
-        <tr>
+        <thead>
           <th
             class="bg-dark text-light"
             style="position: sticky; top: 0"
@@ -89,9 +89,8 @@ fetchInquiriesData();
           >
             {{ h }}
           </th>
-        </tr>
-
-        <tr v-for="(i, i_) in inquiries">
+        </thead>
+        <tbody v-for="(i, i_) in inquiries">
           <td class="border border-dark">{{ i_ + 1 }}</td>
           <td class="border border-dark">{{ i?.id }}</td>
           <td class="border border-dark">{{ i?.inquiryNumber }}</td>
@@ -105,7 +104,7 @@ fetchInquiriesData();
               </a>
             </div>
           </td>
-        </tr>
+        </tbody>
       </table>
     </div>
   </div>
