@@ -13,7 +13,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-var connString = "server=172.17.0.1;database=engineer;user=root;password=mypass";
+var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -538,10 +538,10 @@ app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, st
         worksheet.Cell(1, 5).Value = "Quo";
 
         worksheet.Cell(1, 6).Value = "In Charge";
-        worksheet.Cell(1, 6).Value = "Hours";
+        worksheet.Cell(1, 7).Value = "Hours";
 
-        worksheet.Cell(1, 7).Value = "Start Date";
-        worksheet.Cell(1, 8).Value = "End Date";
+        worksheet.Cell(1, 8).Value = "Start Date";
+        worksheet.Cell(1, 9).Value = "End Date";
 
         int row = 2; // Starting row for data
         foreach (var activity in activities)

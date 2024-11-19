@@ -235,11 +235,11 @@ const removeTask = (index) => {
 //   console.log("Form submitted:", values);
 // });
 
-const fetchUsersData = async () => {
-  const d = await fetchUsers();
-  console.log("users", d);
-  users.value = d;
-};
+// const fetchUsersData = async () => {
+//   const d = await fetchUsers();
+//   console.log("users", d);
+//   users.value = d;
+// };
 
 const fetchInquiriesData = async () => {
   const d = await fetchInquiries();
