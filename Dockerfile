@@ -17,8 +17,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy as runtime-env
 WORKDIR /App
 
 # Use APT cache to speed up dependency installations
-RUN apt-get update && \
-    --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/apt \
+RUN --mount=type=cache,target=/var/cache/apt --mount=type=cache,target=/var/lib/apt apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     pdftk imagemagick && \
     apt-get clean && \

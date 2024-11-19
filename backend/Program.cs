@@ -13,7 +13,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-var connString = "server=127.0.0.1;database=engineer;user=root;password=";
+var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
 
 
 builder.Services.ConfigureHttpJsonOptions(options =>
