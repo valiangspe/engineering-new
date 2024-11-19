@@ -36,7 +36,7 @@
               <th>Panel Type</th>
               <th>Process Name</th>
               <th>Minutes</th>
-              <th>Actions</th>
+              <!-- <th>Actions</th> -->
             </tr>
           </thead>
           <tbody>
@@ -45,10 +45,10 @@
               <td>{{ process.panelType }}</td>
               <td>{{ process.processName }}</td>
               <td>{{ process.minutes }}</td>
-              <td>
+              <!-- <td>
                 <button class="btn btn-edit" @click="editProcess(process)">Edit</button>
                 <button class="btn btn-delete" @click="deleteProcess(process.id)">Delete</button>
-              </td>
+              </td> -->
             </tr>
           </tbody>
         </table>
@@ -72,7 +72,7 @@
   // Fetch all panel processes
   const fetchProcesses = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_APP_BASE_URL}/api/panelprocess`);
+      const response = await axios.get(`${import.meta.env.VITE_APP_BASE_URL}/panelprocess`);
       processes.value = response.data;
     } catch (error) {
       console.error('Error fetching panel processes:', error);
@@ -106,7 +106,7 @@
     if (selectedProcess.value) {
       // Update existing process
       try {
-        await axios.put(`${import.meta.env.VITE_APP_BASE_URL}/api/panelprocess/${selectedProcess.value.id}`, formData.value);
+        await axios.put(`${import.meta.env.VITE_APP_BASE_URL}/panelprocess/${selectedProcess.value.id}`, formData.value);
         fetchProcesses();
         isFormVisible.value = false;
       } catch (error) {
@@ -115,7 +115,7 @@
     } else {
       // Create new process
       try {
-        await axios.post(`${import.meta.env.VITE_APP_BASE_URL}/api/panelprocess`, formData.value);
+        await axios.post(`${import.meta.env.VITE_APP_BASE_URL}/panelprocess`, formData.value);
         fetchProcesses();
         isFormVisible.value = false;
       } catch (error) {
@@ -127,7 +127,7 @@
   // Delete a process
   const deleteProcess = async (id) => {
     try {
-      await axios.delete(`${import.meta.env.VITE_APP_BASE_URL}/api/panelprocess/${id}`);
+      await axios.delete(`${import.meta.env.VITE_APP_BASE_URL}/panelprocess/${id}`);
       fetchProcesses();
     } catch (error) {
       console.error('Error deleting panel process:', error);

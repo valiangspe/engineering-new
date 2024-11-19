@@ -71,8 +71,8 @@
 
       <v-list-item
           prepend-icon="mdi-file-document"
-          href="/#/loadpekerjaan"
-          title="engineer time procces"
+          href="/#/engineerTimeProcess"
+          title="Engineer Time Procces"
           value="file-document"
         ></v-list-item>
 

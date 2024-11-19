@@ -10,6 +10,7 @@ import {
   fetchUsers,
   fetchWoTemplates,
   getEngineeringActivitiesUrl,
+  // engineTimeProcesses,
 } from "./fetchers";
 import { intlFormat, makeDateString } from "../helpers";
 import chroma from "chroma-js";
@@ -17,6 +18,18 @@ import { ctx } from "../main";  // Mengimpor ctx untuk mendapatkan role pengguna
 import { useNotificationStore } from "./notificationStore";
 import { v4 as uuidv4 } from 'uuid'; // Tambahkan UUID untuk id unik
 import { useRoute } from "vue-router";
+// import axios from 'axios';
+
+const fetchUsersData = async () => {
+  try {
+    const d = await fetchUsers();
+    console.log("users", d);
+    users.value = d;
+  } catch (error) {
+    console.error("Error fetching users:", error);
+  }
+};
+
 
 
 // import { useRoute } from "vue-router";  // Menambahkan import useRoute
@@ -31,9 +44,31 @@ const getEngineeringActivityIdByTaskId = (taskId) => {
   console.warn(`Engineering activity dengan task ID ${taskId} tidak ditemukan.`);
   return null; // Kembalikan null jika tidak ditemukan
 };
+// const handlePanelTypeSelection = (selectedPanelType) => {
+//   if (selectedPanelType) {
+//     // Tambahkan task baru ke tabel
+//     form.value.tasks.push({
+//       description: selectedPanelType.processName,
+//       hours: selectedPanelType.minutes / 60, // Konversi menit ke jam
+//       from: new Date().toISOString(),
+//       to: new Date().toISOString(),
+//       inCharges: [],
+//       remark: "",
+//     });
+//   }
+// };
 
+// const processes = ref([]);
 
-
+// // Fetch all panel processes
+// const fetchProcesses = async () => {
+//     try {
+//       const response = await axios.get(`${import.meta.env.VITE_APP_BASE_URL}/panelprocess`);
+//       processes.value = response.data;
+//     } catch (error) {
+//       console.error('Error fetching panel processes:', error);
+//     }
+//   };
 
 
 // Ambil data role dari `ctx` dan `localStorage`
@@ -48,18 +83,19 @@ const userRoles = computed(() => {
 
 // Memuat data aktivitas saat halaman dimuat dan memeriksa apakah ada query taskId
 onMounted(() => {
-  const taskId = route.query.taskId;
+  const taskId = route.query.taskId; // Ambil taskId dari query
   if (taskId) {
-    openTaskById(taskId);
+    openTaskById(taskId); // Buka task berdasarkan taskId
   }
 });
 
 
+
 const openTaskById = (taskId) => {
-  const foundActivity = activities.value.find(activity => 
-    activity.tasks.some(task => task.id === taskId)
+  const foundActivity = activities.value.find((activity) =>
+    activity.tasks.some((task) => task.id === taskId)
   );
-  
+
   if (foundActivity) {
     selectedActivity.value = foundActivity;
     dialog.value = true;
@@ -67,6 +103,20 @@ const openTaskById = (taskId) => {
     console.warn(`Task dengan ID ${taskId} tidak ditemukan.`);
   }
 };
+
+
+// const openTaskById = (taskId) => {
+//   const foundActivity = activities.value.find(activity => 
+//     activity.tasks.some(task => task.id === taskId)
+//   );
+  
+//   if (foundActivity) {
+//     selectedActivity.value = foundActivity;
+//     dialog.value = true;
+//   } else {
+//     console.warn(`Task dengan ID ${taskId} tidak ditemukan.`);
+//   }
+// };
 
 
 // Fungsi untuk memuat data aktivitas
@@ -216,6 +266,7 @@ const fetchWoTemplatesData = async () => {
   woTemplates.value = d;
 };
 
+
 const handleDone = async (task, role) => {
   try {
     let nextRole = null;
@@ -248,42 +299,82 @@ const handleDone = async (task, role) => {
           second: '2-digit',
         }),
       });
+
+      // Kirim ke backend tabel notifikasi
+      await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `Task Update: ${task.description}`,
+          message: `Task dengan ID ${task.id} siap untuk dilakukan "done" oleh ${nextRole.toUpperCase()}.`,
+          role: nextRole,
+          taskId: task.id,
+          createdAt: new Date().toISOString(),
+        }),
+      });
     }
 
     console.log(`Task ID ${task.id} updated successfully`);
   } catch (error) {
-    console.error('Error updating task:', error);
+    console.error("Error updating task:", error);
   }
 };
+
+
+
+// const handleDone = async (task, role) => {
+//   try {
+//     let nextRole = null;
+
+//     if (role === 'pic' && task.completedDatePic) {
+//       nextRole = 'spv';
+//     } else if (role === 'spv' && task.completedDateSpv) {
+//       nextRole = 'manager';
+//     } else if (role === 'manager' && task.completedDateManager) {
+//       nextRole = null;
+//     }
+
+//     const notificationStore = useNotificationStore();
+//     notificationStore.updateNotification(task, nextRole);
+
+//     if (nextRole) {
+//       notificationStore.addNotification({
+//         id: uuidv4(),
+//         title: `Task Update: ${task.description}`,
+//         message: `Task dengan ID ${task.id} siap untuk dilakukan "done" oleh ${nextRole.toUpperCase()}.`,
+//         role: nextRole,
+//         taskId: task.id,
+//         createdAt: new Date().toLocaleString('id-ID', {
+//           weekday: 'long',
+//           year: 'numeric',
+//           month: 'long',
+//           day: 'numeric',
+//           hour: '2-digit',
+//           minute: '2-digit',
+//           second: '2-digit',
+//         }),
+//       });
+//     }
+
+//     console.log(`Task ID ${task.id} updated successfully`);
+//   } catch (error) {
+//     console.error('Error updating task:', error);
+//   }
+// };
 
 
 
 const handleSave = async () => {
   console.log(form.value);
   try {
-    const updatedTasks = form.value.tasks.map((task) => {
-      let updatedTask = { ...task };
-
-      // Jangan mengubah status 'done' saat mengedit
-      if (!task.completedDatePic) {
-        updatedTask.completedByPicId = task.completedByPicId || null;
-        updatedTask.completedDatePic = task.completedDatePic || null;
-      }
-      if (!task.completedDateSpv) {
-        updatedTask.completedBySpvId = task.completedBySpvId || null;
-        updatedTask.completedDateSpv = task.completedDateSpv || null;
-      }
-      if (!task.completedDateManager) {
-        updatedTask.completedByManagerId = task.completedByManagerId || null;
-        updatedTask.completedDateManager = task.completedDateManager || null;
-      }
-
-      return updatedTask;
-    });
-
     const updatedForm = {
       ...form.value,
-      tasks: updatedTasks,
+      tasks: form.value.tasks.map((task) => ({
+        ...task,
+        completedByPicId: task.completedByPicId || null,
+        completedBySpvId: task.completedBySpvId || null,
+        completedByManagerId: task.completedByManagerId || null,
+      })),
     };
 
     const resp = await fetch(
@@ -296,25 +387,22 @@ const handleSave = async () => {
     );
 
     if (resp.ok) {
-      // Bagian notifikasi dihapus untuk mencegah pengiriman notifikasi
-      /*
-      const notificationStore = useNotificationStore();
-      updatedTasks.forEach((task) => {
-        let nextRole = !task.completedDatePic ? 'pic'
-                     : !task.completedDateSpv ? 'spv'
-                     : !task.completedDateManager ? 'manager'
-                     : null;
-
-        // Tambahkan notifikasi untuk role berikutnya
-        if (nextRole) {
-          notificationStore.addNotification({
-            ...task,
-            id: uuidv4(),
-            role: nextRole,
-          });
-        }
+      // Kirim notifikasi ke backend
+      updatedForm.tasks.forEach(async (task) => {
+        await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/notifications`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `Task Baru: ${task.description}`,
+            message: `Task dengan ID ${task.id} baru saja ditambahkan.`,
+            role: "pic", // Notifikasi awal untuk PIC
+            taskId: task.id,
+            createdAt: new Date().toISOString(),
+          }),
+        });
       });
-      */
+
+      console.log("Notifikasi berhasil dibuat.");
     }
 
     dialog.value = false;
@@ -326,6 +414,74 @@ const handleSave = async () => {
   }
 };
 
+// const handleSave = async () => {
+//   console.log(form.value);
+//   try {
+//     const updatedTasks = form.value.tasks.map((task) => {
+//       let updatedTask = { ...task };
+
+//       // Jangan mengubah status 'done' saat mengedit
+//       if (!task.completedDatePic) {
+//         updatedTask.completedByPicId = task.completedByPicId || null;
+//         updatedTask.completedDatePic = task.completedDatePic || null;
+//       }
+//       if (!task.completedDateSpv) {
+//         updatedTask.completedBySpvId = task.completedBySpvId || null;
+//         updatedTask.completedDateSpv = task.completedDateSpv || null;
+//       }
+//       if (!task.completedDateManager) {
+//         updatedTask.completedByManagerId = task.completedByManagerId || null;
+//         updatedTask.completedDateManager = task.completedDateManager || null;
+//       }
+
+//       return updatedTask;
+//     });
+
+//     const updatedForm = {
+//       ...form.value,
+//       tasks: updatedTasks,
+//     };
+
+//     const resp = await fetch(
+//       `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities`,
+//       {
+//         method: "post",
+//         headers: { "content-type": "application/json" },
+//         body: JSON.stringify(updatedForm),
+//       }
+//     );
+
+//     if (resp.ok) {
+//       // Bagian notifikasi dihapus untuk mencegah pengiriman notifikasi
+//       /*
+//       const notificationStore = useNotificationStore();
+//       updatedTasks.forEach((task) => {
+//         let nextRole = !task.completedDatePic ? 'pic'
+//                      : !task.completedDateSpv ? 'spv'
+//                      : !task.completedDateManager ? 'manager'
+//                      : null;
+
+//         // Tambahkan notifikasi untuk role berikutnya
+//         if (nextRole) {
+//           notificationStore.addNotification({
+//             ...task,
+//             id: uuidv4(),
+//             role: nextRole,
+//           });
+//         }
+//       });
+//       */
+//     }
+
+//     dialog.value = false;
+//     form.value = { ...defaultForm };
+
+//     fetchEngineeringActivitiesData();
+//   } catch (e) {
+//     console.error("Error saat menyimpan task:", e);
+//   }
+// };
+
 
 
 fetchUsersData();
@@ -335,6 +491,7 @@ fetchJobsProtoSimpleData();
 fetchWoTemplatesData();
 fetchInquiriesData();
 fetchPosData();
+// fetchProcesses();
 
 const alertx = (content) => {
   alert(content);
@@ -640,6 +797,22 @@ const alertx = (content) => {
                 }
               "
             ></v-autocomplete>
+
+            <!-- <div>
+  <strong>Panel Type</strong>
+  <v-autocomplete
+  :items="processes.map((p) => ({ label: `${p.panelType} - ${p.processName}`, value: p }))"
+  :item-title="(p) => p.label"
+  @update:model-value="(selected) => {
+    if (selected) {
+      handlePanelTypeSelection(selected.value);
+    }
+  }"
+></v-autocomplete>
+
+</div> -->
+
+
           </div>
 
           <template v-if="form.type === 'PrePO'">
@@ -942,7 +1115,6 @@ const alertx = (content) => {
   </div>
 </td> -->
 
-
 <td class="border border-dark">
   <div v-if="!task.completedDatePic && userRoles.includes('pic')">
     <input
@@ -959,7 +1131,9 @@ const alertx = (content) => {
   </div>
   <div v-else-if="task.completedDatePic">
     {{ new Date(task.completedDatePic).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || PIC
+    <br />
+    Done by: 
+    {{ users.find(user => user.id === task.completedByPicId)?.name }} || PIC
     <button
       class="btn btn-sm btn-secondary mt-2"
       @click="
@@ -974,8 +1148,6 @@ const alertx = (content) => {
     </button>
   </div>
 </td>
-
-<!-- Done SPV -->
 <td class="border border-dark">
   <div v-if="!task.completedDateSpv && task.completedDatePic && userRoles.includes('spv')">
     <input
@@ -992,7 +1164,9 @@ const alertx = (content) => {
   </div>
   <div v-else-if="task.completedDateSpv">
     {{ new Date(task.completedDateSpv).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || SPV
+    <br />
+    Done by: 
+    {{ users.find(user => user.id === task.completedBySpvId)?.name }} || SPV
     <button
       class="btn btn-sm btn-secondary mt-2"
       @click="
@@ -1007,8 +1181,6 @@ const alertx = (content) => {
     </button>
   </div>
 </td>
-
-<!-- Done Manager -->
 <td class="border border-dark">
   <div v-if="!task.completedDateManager && task.completedDateSpv && userRoles.includes('manager')">
     <input
@@ -1025,7 +1197,9 @@ const alertx = (content) => {
   </div>
   <div v-else-if="task.completedDateManager">
     {{ new Date(task.completedDateManager).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || Manager
+    <br />
+    Done by: 
+    {{ users.find(user => user.id === task.completedByManagerId)?.name }} || Manager
     <button
       class="btn btn-sm btn-secondary mt-2"
       @click="
