@@ -31,6 +31,16 @@ const fetchUsersData = async () => {
 };
 
 
+const formatDate = (date) => {
+  if (!date) return "";
+  return new Date(date).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+};
+
+
 
 // import { useRoute } from "vue-router";  // Menambahkan import useRoute
 
@@ -1086,48 +1096,10 @@ const alertx = (content) => {
                         />
                       </td>
                      
-                 <!-- Done PIC -->
+               
 
-<!-- Done PIC -->
+
 <!-- <td class="border border-dark">
-  <div
-    v-if="
-      !task.completedDatePic &&
-      userRoles.includes('pic') &&
-      task.inCharges.some(ic => ic.extUserId === ctx.user.id)
-    "
-  >
-    <input
-      type="date"
-      class="form-control form-control-sm"
-      @blur="
-        (e) => {
-          task.completedDatePic = new Date().toISOString();
-          task.completedByPicId = ctx?.user?.id;
-          handleDone(task, 'pic'); // Notify and move to the next role
-        }
-      "
-    />
-  </div>
-  <div v-else-if="task.completedDatePic">
-    {{ new Date(task.completedDatePic).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || PIC
-    <button
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDatePic = null;
-          task.completedByPicId = null;
-          undoDone(task, 'pic'); // Undo action and update notification
-        }
-      "
-    >
-      Undo
-    </button>
-  </div>
-</td> -->
-
-<td class="border border-dark">
   <div v-if="!task.completedDatePic && userRoles.includes('pic')">
     <input
       type="date"
@@ -1209,6 +1181,107 @@ const alertx = (content) => {
   </div>
   <div v-else-if="task.completedDateManager">
     {{ new Date(task.completedDateManager).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
+    <br />
+    Done by: 
+    {{ users.find(user => user.id === task.completedByManagerId)?.name }} || Manager
+    <button
+      class="btn btn-sm btn-secondary mt-2"
+      @click="
+        () => {
+          task.completedDateManager = null;
+          task.completedByManagerId = null;
+          undoDone(task, 'manager'); // Undo action and update notification
+        }
+      "
+    >
+      Undo
+    </button>
+  </div>
+</td> -->
+<td class="border border-dark">
+  <div v-if="!task.completedDatePic && userRoles.includes('pic')">
+    <input
+      type="date"
+      class="form-control form-control-sm"
+      @blur="
+        (e) => {
+          task.completedDatePic = `${e.target.value}T00:00:00Z`;
+          task.completedByPicId = ctx?.user?.id;
+          handleDone(task, 'pic'); // Notify and move to the next role
+        }
+      "
+    />
+  </div>
+  <div v-else-if="task.completedDatePic">
+    {{ formatDate(task.completedDatePic) }}
+    <br />
+    Done by: 
+    {{ users.find(user => user.id === task.completedByPicId)?.name }} || PIC
+    <button
+      class="btn btn-sm btn-secondary mt-2"
+      @click="
+        () => {
+          task.completedDatePic = null;
+          task.completedByPicId = null;
+          undoDone(task, 'pic'); // Undo action and update notification
+        }
+      "
+    >
+      Undo
+    </button>
+  </div>
+</td>
+
+<td class="border border-dark">
+  <div v-if="!task.completedDateSpv && task.completedDatePic && userRoles.includes('spv')">
+    <input
+      type="date"
+      class="form-control form-control-sm"
+      @blur="
+        (e) => {
+          task.completedDateSpv = `${e.target.value}T00:00:00Z`;
+          task.completedBySpvId = ctx?.user?.id;
+          handleDone(task, 'spv'); // Notify and move to the next role
+        }
+      "
+    />
+  </div>
+  <div v-else-if="task.completedDateSpv">
+    {{ formatDate(task.completedDateSpv) }}
+    <br />
+    Done by: 
+    {{ users.find(user => user.id === task.completedBySpvId)?.name }} || SPV
+    <button
+      class="btn btn-sm btn-secondary mt-2"
+      @click="
+        () => {
+          task.completedDateSpv = null;
+          task.completedBySpvId = null;
+          undoDone(task, 'spv'); // Undo action and update notification
+        }
+      "
+    >
+      Undo
+    </button>
+  </div>
+</td>
+
+<td class="border border-dark">
+  <div v-if="!task.completedDateManager && task.completedDateSpv && userRoles.includes('manager')">
+    <input
+      type="date"
+      class="form-control form-control-sm"
+      @blur="
+        (e) => {
+          task.completedDateManager = `${e.target.value}T00:00:00Z`;
+          task.completedByManagerId = ctx?.user?.id;
+          handleDone(task, 'manager'); // Notify task completion
+        }
+      "
+    />
+  </div>
+  <div v-else-if="task.completedDateManager">
+    {{ formatDate(task.completedDateManager) }}
     <br />
     Done by: 
     {{ users.find(user => user.id === task.completedByManagerId)?.name }} || Manager
