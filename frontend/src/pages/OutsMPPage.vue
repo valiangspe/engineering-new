@@ -102,6 +102,7 @@ import {
   fetchUsers,
 } from "./fetchers";
 
+
 const users = ref([]);
 const departments = ref([]);
 const activities = ref([]);
@@ -186,26 +187,34 @@ const headers = ref([
 ]);
 
 const items = computed(() => {
-  return users.value
+  const result = users.value
     .filter((u) => {
       const dName = departments?.value?.find(
         (d) => `${d?.id}` === `${u?.departmentId}`
       )?.name;
 
       return ["eng", "estimat"].find((s) => dName?.toLowerCase()?.includes(s));
-      return true;
     })
     .map((u) => {
-      const foundActivities = activities.value.filter(
-        (a) =>
-          a?.tasks?.find((t) =>
-            t?.inCharges?.find((i) => `${i?.extUserId}` === `${u?.id}`)
-          ) &&
-          (isCompleted.value !== null
-            ? isCompleted.value === true
-              ? !a?.tasks.find((t) => !t?.completedDate)
-              : a?.tasks.find((t) => !t?.completedDate)
-            : true)
+      const foundActivities = activities.value.filter((a) =>
+        a?.tasks?.some((t) =>
+          t?.inCharges?.some((i) => `${i?.extUserId}` === `${u?.id}`)
+        ) &&
+        (isCompleted.value !== null
+          ? isCompleted.value === true
+            ? !a?.tasks.some(
+                (t) =>
+                  !t?.completedDatePic ||
+                  !t?.completedDateSpv ||
+                  !t?.completedDateManager
+              )
+            : a?.tasks.some(
+                (t) =>
+                  !t?.completedDatePic ||
+                  !t?.completedDateSpv ||
+                  !t?.completedDateManager
+              )
+          : true)
       );
 
       const data = {
@@ -242,7 +251,6 @@ const items = computed(() => {
           ),
       };
 
-      // console.log(u?.name, foundActivities);
       return {
         ...data,
         totalActivity:
@@ -251,10 +259,18 @@ const items = computed(() => {
           data.prePoProcess + data.postPoProcess + data.othersProcess,
       };
     });
+
+  console.log("Items Data: ", result); // Debugging data items
+  return result;
 });
 
-const grandTotal = computed(() => {
-  return {
+
+const isTaskDone = (task) =>
+  task?.completedDatePic && task?.completedDateSpv && task?.completedDateManager;
+
+
+  const grandTotal = computed(() => {
+  const result = {
     prePoActivity: items.value.reduce(
       (sum, item) => sum + item.prePoActivity,
       0
@@ -287,7 +303,115 @@ const grandTotal = computed(() => {
       0
     ),
   };
+
+  console.log("Grand Total: ", result); // Debugging grand total
+  return result;
 });
+
+
+// const items = computed(() => {
+//   return users.value
+//     .filter((u) => {
+//       const dName = departments?.value?.find(
+//         (d) => `${d?.id}` === `${u?.departmentId}`
+//       )?.name;
+
+//       return ["eng", "estimat"].find((s) => dName?.toLowerCase()?.includes(s));
+//       return true;
+//     })
+//     .map((u) => {
+//       const foundActivities = activities.value.filter(
+//         (a) =>
+//           a?.tasks?.find((t) =>
+//             t?.inCharges?.find((i) => `${i?.extUserId}` === `${u?.id}`)
+//           ) &&
+//           (isCompleted.value !== null
+//             ? isCompleted.value === true
+//               ? !a?.tasks.find((t) => !t?.completedDate)
+//               : a?.tasks.find((t) => !t?.completedDate)
+//             : true)
+//       );
+
+//       const data = {
+//         engineer: u?.name ?? "",
+//         prePoActivity: foundActivities?.filter((a) => a.type === "PrePO")
+//           ?.length,
+//         prePoProcess: foundActivities
+//           ?.filter((a) => a.type === "PrePO")
+//           ?.reduce(
+//             (acc, a) =>
+//               acc +
+//               (a?.tasks?.reduce((acc, t) => acc + (t?.hours ?? 0), 0.0) ?? 0),
+//             0.0
+//           ),
+//         postPoActivity: foundActivities?.filter((a) => a.type === "PostPO")
+//           ?.length,
+//         postPoProcess: foundActivities
+//           ?.filter((a) => a.type === "PostPO")
+//           ?.reduce(
+//             (acc, a) =>
+//               acc +
+//               (a?.tasks?.reduce((acc, t) => acc + (t?.hours ?? 0), 0.0) ?? 0),
+//             0.0
+//           ),
+//         othersActivity: foundActivities?.filter((a) => a.type === "Others")
+//           ?.length,
+//         othersProcess: foundActivities
+//           ?.filter((a) => a.type === "Others")
+//           ?.reduce(
+//             (acc, a) =>
+//               acc +
+//               (a?.tasks?.reduce((acc, t) => acc + (t?.hours ?? 0), 0.0) ?? 0),
+//             0.0
+//           ),
+//       };
+
+//       // console.log(u?.name, foundActivities);
+//       return {
+//         ...data,
+//         totalActivity:
+//           data.prePoActivity + data.postPoActivity + data.othersActivity,
+//         totalProcess:
+//           data.prePoProcess + data.postPoProcess + data.othersProcess,
+//       };
+//     });
+// });
+
+// const grandTotal = computed(() => {
+//   return {
+//     prePoActivity: items.value.reduce(
+//       (sum, item) => sum + item.prePoActivity,
+//       0
+//     ),
+//     prePoProcess: items.value.reduce((sum, item) => sum + item.prePoProcess, 0),
+//     postPoActivity: items.value.reduce(
+//       (sum, item) => sum + item.postPoActivity,
+//       0
+//     ),
+//     postPoProcess: items.value.reduce(
+//       (sum, item) => sum + item.postPoProcess,
+//       0
+//     ),
+//     othersActivity: items.value.reduce(
+//       (sum, item) => sum + item.othersActivity,
+//       0
+//     ),
+//     othersProcess: items.value.reduce(
+//       (sum, item) => sum + item.othersProcess,
+//       0
+//     ),
+//     totalActivity: items.value.reduce(
+//       (sum, item) =>
+//         sum + item.prePoActivity + item.postPoActivity + item.othersActivity,
+//       0
+//     ),
+//     totalProcess: items.value.reduce(
+//       (sum, item) =>
+//         sum + item.prePoProcess + item.postPoProcess + item.othersProcess,
+//       0
+//     ),
+//   };
+// });
 </script>
 
 <style>

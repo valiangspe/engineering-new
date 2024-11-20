@@ -190,6 +190,33 @@ const jobs = ref({});
 const selectedFilterUser = ref(null);
 const inquiries = ref([]);
 
+const loadNotifications = async () => {
+  if (!userRole.value) {
+    console.warn("User Role belum diambil.");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/active?role=${userRole.value}`
+    );
+    if (response.ok) {
+      const data = await response.json();
+      notificationStore.notifications = data;
+      console.log("Notifikasi berhasil dimuat:", data);
+    } else {
+      console.error("Gagal memuat notifikasi:", response.status);
+    }
+  } catch (error) {
+    console.error("Error memuat notifikasi:", error);
+  }
+};
+
+// onMounted(() => {
+//   loadNotifications();
+// });
+
+
 const requiredRule = [(v) => !!v || "Required."];
 
 const menu = ref(false);
@@ -271,47 +298,27 @@ const handleDone = async (task, role) => {
   try {
     let nextRole = null;
 
-    if (role === 'pic' && task.completedDatePic) {
-      nextRole = 'spv';
-    } else if (role === 'spv' && task.completedDateSpv) {
-      nextRole = 'manager';
-    } else if (role === 'manager' && task.completedDateManager) {
+    if (role === "pic" && task.completedDatePic) {
+      nextRole = "spv";
+    } else if (role === "spv" && task.completedDateSpv) {
+      nextRole = "manager";
+    } else if (role === "manager" && task.completedDateManager) {
       nextRole = null;
     }
 
-    const notificationStore = useNotificationStore();
-    notificationStore.updateNotification(task, nextRole);
+    // Update notifikasi di backend
+    await fetch(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/update-task-status?taskId=${task.id}&role=${role}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      }
+    );
 
     if (nextRole) {
-      notificationStore.addNotification({
-        id: uuidv4(),
-        title: `Task Update: ${task.description}`,
-        message: `Task dengan ID ${task.id} siap untuk dilakukan "done" oleh ${nextRole.toUpperCase()}.`,
-        role: nextRole,
-        taskId: task.id,
-        createdAt: new Date().toLocaleString('id-ID', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        }),
-      });
-
-      // Kirim ke backend tabel notifikasi
-      await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/notifications`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: `Task Update: ${task.description}`,
-          message: `Task dengan ID ${task.id} siap untuk dilakukan "done" oleh ${nextRole.toUpperCase()}.`,
-          role: nextRole,
-          taskId: task.id,
-          createdAt: new Date().toISOString(),
-        }),
-      });
+      console.log(`Notifikasi untuk role ${nextRole} berhasil diperbarui.`);
+    } else {
+      console.log(`Task ${task.id} selesai dan tidak ada role berikutnya.`);
     }
 
     console.log(`Task ID ${task.id} updated successfully`);
@@ -365,7 +372,6 @@ const handleDone = async (task, role) => {
 
 
 const handleSave = async () => {
-  console.log(form.value);
   try {
     const updatedForm = {
       ...form.value,
@@ -380,27 +386,31 @@ const handleSave = async () => {
     const resp = await fetch(
       `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities`,
       {
-        method: "post",
-        headers: { "content-type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedForm),
       }
     );
 
     if (resp.ok) {
-      // Kirim notifikasi ke backend
-      updatedForm.tasks.forEach(async (task) => {
-        await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/notifications`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: `Task Baru: ${task.description}`,
-            message: `Task dengan ID ${task.id} baru saja ditambahkan.`,
-            role: "pic", // Notifikasi awal untuk PIC
-            taskId: task.id,
-            createdAt: new Date().toISOString(),
-          }),
-        });
-      });
+      console.log("Activity saved successfully.");
+
+      // Kirim notifikasi ke backend untuk setiap task baru
+      await Promise.all(
+        updatedForm.tasks.map(async (task) => {
+          await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/notifications`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: `Task Baru: ${task.description}`,
+              message: `Task dengan ID ${task.id} telah dibuat.`,
+              role: "pic", // Awal untuk PIC
+              taskId: task.id,
+              createdAt: new Date().toISOString(),
+            }),
+          });
+        })
+      );
 
       console.log("Notifikasi berhasil dibuat.");
     }
@@ -409,10 +419,11 @@ const handleSave = async () => {
     form.value = { ...defaultForm };
 
     fetchEngineeringActivitiesData();
-  } catch (e) {
-    console.error("Error saat menyimpan task:", e);
+  } catch (error) {
+    console.error("Error saat menyimpan task:", error);
   }
 };
+
 
 // const handleSave = async () => {
 //   console.log(form.value);
@@ -491,6 +502,7 @@ fetchJobsProtoSimpleData();
 fetchWoTemplatesData();
 fetchInquiriesData();
 fetchPosData();
+loadNotifications();
 // fetchProcesses();
 
 const alertx = (content) => {
