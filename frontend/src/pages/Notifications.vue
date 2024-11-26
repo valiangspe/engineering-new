@@ -5,9 +5,7 @@
         <v-col cols="12">
           <h3>Notifikasi Task Baru | {{ userRole }}</h3>
           <div v-if="!userRole">
-            <v-alert type="warning">
-              Memuat role pengguna, mohon tunggu...
-            </v-alert>
+            <v-alert type="warning">Memuat role pengguna, mohon tunggu...</v-alert>
           </div>
           <div v-else-if="filteredNotifications.length === 0">
             <v-alert type="info" class="border-left-info">
@@ -16,7 +14,12 @@
           </div>
           <div v-else>
             <v-row dense>
-              <v-col v-for="notification in filteredNotifications" :key="notification.id" cols="12" md="4">
+              <v-col
+                v-for="notification in filteredNotifications"
+                :key="notification.id"
+                cols="12"
+                md="4"
+              >
                 <v-card class="notification-item">
                   <v-card-title class="headline">
                     {{ notification.title }}
@@ -25,19 +28,17 @@
                     <span>{{ notification.message }}</span>
                   </v-card-subtitle>
                   <v-card-text>
-                    <span class="text-muted">{{ notification.createdAt }}</span>
+                    <span class="text-muted">
+                      {{ new Date(notification.createdAt).toLocaleString("id-ID") }}
+                    </span>
                   </v-card-text>
                   <v-card-actions>
                     <v-btn color="red" @click="deleteNotification(notification.id)" small>
                       Delete
                     </v-btn>
-                    <v-btn
-                      color="info"
-                      @click="goToActivity(notification.taskId)"
-                      small
-                    >
-                      Go to Task
-                    </v-btn>
+                    <v-btn @click="goToActivity(notification.taskId)">Go to Task</v-btn>
+
+
                     <v-btn
                       v-if="notification.role === userRole"
                       color="success"
@@ -58,111 +59,102 @@
 </template>
 
 <script setup>
-// import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useNotificationStore } from './notificationStore';
-import { ctx } from '../main';
-import { fetchEngineeringActivities } from './fetchers';
-import { ref, watchEffect, computed, onMounted, onUnmounted } from 'vue';
-
+import { useRouter } from "vue-router";
+import { useNotificationStore } from "./notificationStore";
+import { ref, computed, onMounted } from "vue";
 
 const router = useRouter();
 const notificationStore = useNotificationStore();
+
 const notifications = computed(() => notificationStore.notifications);
-const userRole = ref(localStorage.getItem('userRole') || ctx.userRole);
-const activities = ref([]);
+const userRole = ref(localStorage.getItem("userRole") || null);
 
-// Fungsi untuk memuat data activities jika belum ada
-const loadEngineeringActivities = async () => {
-  if (activities.value.length === 0) {
-    activities.value = await fetchEngineeringActivities(); // Memanggil API untuk mendapatkan data activities
+const loadNotifications = async () => {
+  if (!userRole.value) {
+    console.warn("User Role belum tersedia.");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/active?role=${userRole.value}`
+    );
+    if (response.ok) {
+      const data = await response.json();
+      notificationStore.notifications = data;
+      console.log("Notifikasi berhasil dimuat:", data);
+    } else {
+      console.error("Gagal memuat notifikasi:", response.status);
+    }
+  } catch (error) {
+    console.error("Error saat memuat notifikasi:", error);
   }
 };
 
-// Fungsi untuk mendapatkan `engineeringActivityId`, `from`, dan `to` berdasarkan `taskId`
-const getEngineeringActivityDataByTaskId = async (taskId) => {
-  await loadEngineeringActivities();
-  const activity = activities.value.find(activity =>
-    activity.tasks.some(task => task.id === taskId)
-  );
-  return activity ? { id: activity.id, from: activity.from, to: activity.to } : null;
-};
-
-// Fungsi untuk navigasi ke halaman activity berdasarkan `taskId`
-const goToActivity = async (taskId) => {
-  console.log(`Navigating to taskId: ${taskId}`);
-  const activityData = await getEngineeringActivityDataByTaskId(taskId);
-
-  if (activityData) {
-    router.push({
-      path: '/wo',
-      query: {
-        taskId,
-        engineeringActivityId: activityData.id
+const deleteNotification = async (id) => {
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/${id}`,
+      {
+        method: "DELETE",
       }
-    });
+    );
+
+    if (response.ok) {
+      console.log(`Notifikasi dengan ID ${id} berhasil dihapus.`);
+      loadNotifications();
+    } else {
+      console.error("Gagal menghapus notifikasi:", response.status);
+    }
+  } catch (error) {
+    console.error("Error saat menghapus notifikasi:", error);
   }
 };
 
-
-watchEffect(() => {
-  userRole.value = localStorage.getItem('userRole') || ctx.userRole;
-  if (!userRole.value) {
-    console.warn('User Role belum diambil atau tidak ada');
-  } else {
-    console.log('User Role berhasil diambil:', userRole.value);
-  }
-});
-
-const filteredNotifications = computed(() => {
-  if (!userRole.value) {
-    return [];
-  }
-  return notifications.value
-    .filter(notification => notification.role === userRole.value || notification.role === null)
-    .reverse();
-});
-
-const deleteNotification = (id) => {
-  console.log(`Deleting notification: ${id}`);
-  notificationStore.removeNotification(id);
-};
 
 const handleDone = async (notification) => {
-  console.log(`Melakukan done untuk notifikasi: ${notification.title}`);
   try {
-    const currentDate = new Date().toISOString();
-    const updatedTask = { ...notification };
+    const response = await fetch(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/done?taskId=${notification.taskId}&role=${notification.role}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      }
+    );
 
-    if (userRole.value === "pic" && !updatedTask.completedDatePic) {
-      updatedTask.completedDatePic = currentDate;
-      updatedTask.completedByPicId = localStorage.getItem("userId");
-      notificationStore.updateNotification(updatedTask, 'spv');
-    } else if (userRole.value === "spv" && !updatedTask.completedDateSpv) {
-      updatedTask.completedDateSpv = currentDate;
-      updatedTask.completedBySpvId = localStorage.getItem("userId");
-      notificationStore.updateNotification(updatedTask, 'manager');
-    } else if (userRole.value === "manager" && !updatedTask.completedDateManager) {
-      updatedTask.completedDateManager = currentDate;
-      updatedTask.completedByManagerId = localStorage.getItem("userId");
-      notificationStore.updateNotification(updatedTask, null);
+    if (response.ok) {
+      const updatedNotification = await response.json();
+      console.log(`Notifikasi selesai untuk task ${notification.taskId}.`);
+      loadNotifications();
+    } else {
+      console.error("Gagal menandai notifikasi sebagai selesai:", response.status);
     }
-
-    notificationStore.syncTaskToBackend(updatedTask); // Sinkronisasi dengan backend
-    deleteNotification(notification.id);
   } catch (error) {
-    console.error('Gagal menandai task sebagai done:', error);
+    console.error("Error saat menandai notifikasi sebagai selesai:", error);
   }
 };
 
-onMounted(() => {
-  const pollingInterval = setInterval(() => {
-    notificationStore.notifications = JSON.parse(localStorage.getItem('notifications')) || [];
-  }, 10000);
 
-  onUnmounted(() => {
-    clearInterval(pollingInterval);
+const goToActivity = (taskId) => {
+  router.push({
+    path: "/wo", // Path ke halaman Activity.vue
+    query: { taskId }, // Kirim taskId sebagai query parameter
   });
+};
+
+
+
+const filteredNotifications = computed(() =>
+  notifications.value
+    .filter(
+      (notification) =>
+        notification.role === userRole.value || notification.role === null
+    )
+    .reverse()
+);
+
+onMounted(() => {
+  loadNotifications();
 });
 </script>
 

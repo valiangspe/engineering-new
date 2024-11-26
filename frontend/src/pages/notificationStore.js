@@ -10,47 +10,71 @@ export const useNotificationStore = defineStore('notificationStore', () => {
     console.log('Notifikasi dimuat dari localStorage:', notifications.value);
   }
 
-  const addNotification = (task, role = 'pic') => {
-    console.log(`Menambahkan notifikasi untuk task: ${task.description}, role: ${role}`);
-    notifications.value.push({
-      id: uuidv4(),
-      title: `Task Baru: ${task.description}`,
-      message: `Task dengan ID ${task.id} baru saja ditambahkan dan perlu dilakukan done.`,
-      createdAt: new Date().toLocaleString("id-ID", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      }),
-      taskId: task.id,
-      role,
-    });
-  };
-
-  const updateNotification = (task, nextRole) => {
-    notifications.value = notifications.value.filter((n) => {
-      return n.taskId !== task.id || (n.taskId === task.id && n.role === nextRole);
-    });
-
-    const notification = notifications.value.find((n) => n.taskId === task.id);
-
-    if (notification) {
-      if (!nextRole) {
-        notification.title = `Task Completed: ${task.description}`;
-        notification.message = `Task dengan ID ${task.id} telah selesai.`;
-        notification.role = null;
+  const addNotification = async (task, role = "pic") => {
+    try {
+      const newNotification = {
+        title: `Task Baru: ${task.description}`,
+        message: `Task dengan ID ${task.id} baru saja ditambahkan dan perlu dilakukan done.`,
+        createdAt: new Date().toISOString(),
+        taskId: task.id,
+        role,
+      };
+  
+      const response = await fetch(
+        `${import.meta.env.VITE_APP_BASE_URL}/api/notifications`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newNotification),
+        }
+      );
+  
+      if (response.ok) {
+        notifications.value.push(await response.json());
+        console.log("Notifikasi baru berhasil ditambahkan.");
       } else {
-        notification.title = `Task Update: ${task.description}`;
-        notification.message = `Task dengan ID ${task.id} siap untuk dilakukan "done" oleh ${nextRole.toUpperCase()}.`;
-        notification.role = nextRole;
+        console.error("Gagal menambahkan notifikasi baru:", response.status);
       }
-    } else {
-      addNotification(task, nextRole);
+    } catch (error) {
+      console.error("Error saat menambahkan notifikasi baru:", error);
     }
   };
+  
+
+  const updateNotification = async (task, nextRole) => {
+    try {
+      const notification = notifications.value.find(
+        (n) => n.taskId === task.id && n.role === nextRole
+      );
+  
+      if (!notification) {
+        await addNotification(task, nextRole);
+        return;
+      }
+  
+      notification.role = nextRole || null;
+      notification.title = nextRole
+        ? `Task Update: ${task.description}`
+        : `Task Completed: ${task.description}`;
+      notification.message = nextRole
+        ? `Task dengan ID ${task.id} siap untuk dilakukan "done" oleh ${nextRole.toUpperCase()}.`
+        : `Task dengan ID ${task.id} telah selesai.`;
+  
+      await fetch(
+        `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/${notification.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(notification),
+        }
+      );
+  
+      console.log("Notifikasi berhasil diperbarui.");
+    } catch (error) {
+      console.error("Error saat memperbarui notifikasi:", error);
+    }
+  };
+  
 
   const removeNotification = (id) => {
     console.log(`Menghapus notifikasi dengan ID: ${id}`);
@@ -60,22 +84,21 @@ export const useNotificationStore = defineStore('notificationStore', () => {
   const syncTaskToBackend = async (task) => {
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/tasks/${task.taskId}`,
+        `${import.meta.env.VITE_APP_BASE_URL}/api/tasks/${task.taskId}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(task),
         }
       );
-      if (response.ok) {
-        console.log('Task berhasil disinkronkan ke backend:', task);
-      } else {
+      if (!response.ok) {
         console.error('Gagal menyinkronkan task ke backend:', response.status);
       }
     } catch (error) {
       console.error('Error saat menyinkronkan task ke backend:', error);
     }
   };
+  
 
   watch(notifications, (newNotifications) => {
     localStorage.setItem('notifications', JSON.stringify(newNotifications));

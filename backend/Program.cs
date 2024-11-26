@@ -12,6 +12,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+
 var builder = WebApplication.CreateBuilder(args);
 var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 
@@ -442,30 +443,55 @@ app.MapPost("/api/deptconfigs", async (List<EngDeptConfig> deptConfig, AppDbCont
 //     return Results.Ok(activities);
 // });
 
-
-
-app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, string? to, int? extInquiryId, bool? withUserNames, bool? excel, HttpContext httpContext, int? userId) =>
+// membuka task by id
+app.MapGet("/api/dashboard/tasks/{id}", async (AppDbContext db, int id) =>
 {
+    var task = await db.Tasks
+        .Include(t => t.EngineeringActivity) // Jika Anda ingin menyertakan data EngineeringActivity
+        .Include(t => t.InCharges) // Jika ingin menyertakan InCharges
+        .FirstOrDefaultAsync(t => t.Id == id);
 
+    if (task == null)
+    {
+        return Results.NotFound(new { message = $"Task dengan ID {id} tidak ditemukan." });
+    }
+
+    return Results.Ok(task);
+});
+// batas
+
+
+// yang di bawah ini backeup nya yang activity
+app.MapGet("/api/dashboard/activities", async (
+    AppDbContext db, 
+    string? from, 
+    string? to, 
+    int? extInquiryId, 
+    int? taskId, // Parameter baru untuk Task ID
+    bool? withUserNames, 
+    bool? excel, 
+    HttpContext httpContext, 
+    int? userId) =>
+{
     DateTime? fromDate = null;
     DateTime? toDate = null;
 
-    if (from != null && from != "")
+    if (!string.IsNullOrEmpty(from))
     {
         fromDate = DateTime.Parse(from);
     }
-    if (to != null && to != "")
+    if (!string.IsNullOrEmpty(to))
     {
         toDate = DateTime.Parse(to);
     }
 
-
+    // Query dasar
     var activitiesQuery = db.EngineeringActivities
-            .Include(a => a.Tasks)
-                .ThenInclude(t => t.InCharges)
-                .AsQueryable();
+        .Include(a => a.Tasks)
+        .ThenInclude(t => t.InCharges)
+        .AsQueryable();
 
-
+    // Filter by date range
     if (fromDate != null)
     {
         activitiesQuery = activitiesQuery.Where(a => a.ToCache >= fromDate);
@@ -474,23 +500,28 @@ app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, st
     if (toDate != null)
     {
         activitiesQuery = activitiesQuery.Where(a => a.FromCache <= toDate);
-
     }
+
+    // Filter by extInquiryId
     if (extInquiryId != null && extInquiryId != 0)
     {
         activitiesQuery = activitiesQuery.Where(a => a.ExtInquiryId == extInquiryId);
     }
 
+    // **Filter by Task ID** (Penambahan kode)
+    if (taskId != null)
+    {
+        activitiesQuery = activitiesQuery.Where(a => a.Tasks.Any(t => t.Id == taskId));
+    }
 
-
-
+    // Filter by userId
     var activities = (await activitiesQuery.ToListAsync())
         .Where(a =>
         {
-
             if (userId != null)
             {
-                return (a.Tasks?.FirstOrDefault(t => t.InCharges.FirstOrDefault(ic => ic.ExtUserId == userId) != null) != null);
+                return a.Tasks?.FirstOrDefault(t => 
+                    t.InCharges.Any(ic => ic.ExtUserId == userId)) != null;
             }
             else
             {
@@ -498,13 +529,10 @@ app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, st
             }
         }).ToList();
 
-
+    // Tambahkan user names jika diminta
     if (withUserNames == true)
     {
-
         var users = await Fetcher.fetchUsersAsync();
-
-        // Console.WriteLine(JsonSerializer.Serialize(users.Select(u => u.Name).ToList()));
 
         activities.ForEach(a =>
         {
@@ -513,45 +541,38 @@ app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, st
                 t.InCharges.ForEach(c =>
                 {
                     var foundUser = users.FirstOrDefault(u => u.Id == c.ExtUserId);
-
                     c.PicName = foundUser?.Name ?? "";
                 });
             });
         });
     }
-    Console.WriteLine(excel);
+
+    // Handle Excel export jika diminta
     if (excel == true)
     {
-
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add("Activities");
 
         var pos = await Fetcher.fetchCrmPurchaseOrdersAsync();
         var inqs = await Fetcher.fetchCrmInquiriesAsync();
 
-
-        // Fill in some sample data or real data
         worksheet.Cell(1, 1).Value = "Task Name";
         worksheet.Cell(1, 2).Value = "Type";
         worksheet.Cell(1, 3).Value = "PO";
         worksheet.Cell(1, 4).Value = "Inq";
         worksheet.Cell(1, 5).Value = "Quo";
-
         worksheet.Cell(1, 6).Value = "In Charge";
         worksheet.Cell(1, 7).Value = "Hours";
-
         worksheet.Cell(1, 8).Value = "Start Date";
         worksheet.Cell(1, 9).Value = "End Date";
 
-        int row = 2; // Starting row for data
+        int row = 2;
         foreach (var activity in activities)
         {
             var foundPO = pos.FirstOrDefault(p => p.Id == activity.ExtPurchaseOrderId);
             var foundInq = inqs.FirstOrDefault(p => p.Id == activity.ExtInquiryId);
 
-
-
-            foreach (var task in activity.Tasks.Where(t => t.DeletedAt == null).ToList())
+            foreach (var task in activity.Tasks.Where(t => t.DeletedAt == null))
             {
                 worksheet.Cell(row, 1).Value = task.Description;
                 worksheet.Cell(row, 2).Value = $"{activity.Type}";
@@ -560,7 +581,6 @@ app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, st
                 worksheet.Cell(row, 5).Value = $"{foundInq?.Quotation?.Name}";
                 worksheet.Cell(row, 6).Value = string.Join(", ", task.InCharges?.Select(i => i.PicName) ?? []);
                 worksheet.Cell(row, 7).Value = $"{task.Hours}";
-
                 worksheet.Cell(row, 8).Value = activity.FromCache?.ToString("yyyy-MM-dd");
                 worksheet.Cell(row, 9).Value = activity.ToCache?.ToString("yyyy-MM-dd");
 
@@ -568,24 +588,161 @@ app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, st
             }
         }
 
-        // Save the Excel file to a memory stream
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
         stream.Position = 0;
 
-        // Set the response headers and return the file as a FileResult
         httpContext.Response.Headers.Add("Content-Disposition", "attachment; filename=activities.xlsx");
-        return Results.File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "activities.xlsx");
+        return Results.File(stream.ToArray(), 
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            "activities.xlsx");
     }
 
-
-
     return Results.Ok(activities);
-
-
-
 });
 
+// app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, string? to, int? extInquiryId, bool? withUserNames, bool? excel, HttpContext httpContext, int? userId) =>
+// {
+
+//     DateTime? fromDate = null;
+//     DateTime? toDate = null;
+
+//     if (from != null && from != "")
+//     {
+//         fromDate = DateTime.Parse(from);
+//     }
+//     if (to != null && to != "")
+//     {
+//         toDate = DateTime.Parse(to);
+//     }
+
+
+//     var activitiesQuery = db.EngineeringActivities
+//             .Include(a => a.Tasks)
+//                 .ThenInclude(t => t.InCharges)
+//                 .AsQueryable();
+
+
+//     if (fromDate != null)
+//     {
+//         activitiesQuery = activitiesQuery.Where(a => a.ToCache >= fromDate);
+//     }
+
+//     if (toDate != null)
+//     {
+//         activitiesQuery = activitiesQuery.Where(a => a.FromCache <= toDate);
+
+//     }
+//     if (extInquiryId != null && extInquiryId != 0)
+//     {
+//         activitiesQuery = activitiesQuery.Where(a => a.ExtInquiryId == extInquiryId);
+//     }
+
+
+
+
+//     var activities = (await activitiesQuery.ToListAsync())
+//         .Where(a =>
+//         {
+
+//             if (userId != null)
+//             {
+//                 return (a.Tasks?.FirstOrDefault(t => t.InCharges.FirstOrDefault(ic => ic.ExtUserId == userId) != null) != null);
+//             }
+//             else
+//             {
+//                 return true;
+//             }
+//         }).ToList();
+
+
+//     if (withUserNames == true)
+//     {
+
+//         var users = await Fetcher.fetchUsersAsync();
+
+//         // Console.WriteLine(JsonSerializer.Serialize(users.Select(u => u.Name).ToList()));
+
+//         activities.ForEach(a =>
+//         {
+//             a.Tasks.ForEach(t =>
+//             {
+//                 t.InCharges.ForEach(c =>
+//                 {
+//                     var foundUser = users.FirstOrDefault(u => u.Id == c.ExtUserId);
+
+//                     c.PicName = foundUser?.Name ?? "";
+//                 });
+//             });
+//         });
+//     }
+//     Console.WriteLine(excel);
+//     if (excel == true)
+//     {
+
+//         using var workbook = new XLWorkbook();
+//         var worksheet = workbook.Worksheets.Add("Activities");
+
+//         var pos = await Fetcher.fetchCrmPurchaseOrdersAsync();
+//         var inqs = await Fetcher.fetchCrmInquiriesAsync();
+
+
+//         // Fill in some sample data or real data
+//         worksheet.Cell(1, 1).Value = "Task Name";
+//         worksheet.Cell(1, 2).Value = "Type";
+//         worksheet.Cell(1, 3).Value = "PO";
+//         worksheet.Cell(1, 4).Value = "Inq";
+//         worksheet.Cell(1, 5).Value = "Quo";
+
+//         worksheet.Cell(1, 6).Value = "In Charge";
+//         worksheet.Cell(1, 7).Value = "Hours";
+
+//         worksheet.Cell(1, 8).Value = "Start Date";
+//         worksheet.Cell(1, 9).Value = "End Date";
+
+//         int row = 2; // Starting row for data
+//         foreach (var activity in activities)
+//         {
+//             var foundPO = pos.FirstOrDefault(p => p.Id == activity.ExtPurchaseOrderId);
+//             var foundInq = inqs.FirstOrDefault(p => p.Id == activity.ExtInquiryId);
+
+
+
+//             foreach (var task in activity.Tasks.Where(t => t.DeletedAt == null).ToList())
+//             {
+//                 worksheet.Cell(row, 1).Value = task.Description;
+//                 worksheet.Cell(row, 2).Value = $"{activity.Type}";
+//                 worksheet.Cell(row, 3).Value = $"{foundPO?.purchaseOrderNumber} ({foundPO?.Account?.Name})";
+//                 worksheet.Cell(row, 4).Value = $"{foundInq?.InquiryNumber} ({foundInq?.Account?.Name})";
+//                 worksheet.Cell(row, 5).Value = $"{foundInq?.Quotation?.Name}";
+//                 worksheet.Cell(row, 6).Value = string.Join(", ", task.InCharges?.Select(i => i.PicName) ?? []);
+//                 worksheet.Cell(row, 7).Value = $"{task.Hours}";
+
+//                 worksheet.Cell(row, 8).Value = activity.FromCache?.ToString("yyyy-MM-dd");
+//                 worksheet.Cell(row, 9).Value = activity.ToCache?.ToString("yyyy-MM-dd");
+
+//                 row++;
+//             }
+//         }
+
+//         // Save the Excel file to a memory stream
+//         using var stream = new MemoryStream();
+//         workbook.SaveAs(stream);
+//         stream.Position = 0;
+
+//         // Set the response headers and return the file as a FileResult
+//         httpContext.Response.Headers.Add("Content-Disposition", "attachment; filename=activities.xlsx");
+//         return Results.File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "activities.xlsx");
+//     }
+
+
+
+//     return Results.Ok(activities);
+
+
+
+// });
+// Batas activity
 
 
 app.MapGet("/api/dashboard/activities/{id}", async (AppDbContext db, int id) =>
@@ -882,6 +1039,150 @@ app.MapPost("/generations", async (AppDbContext db, InquiryAIGeneration inq) =>
 });
 
 
+
+// notifikasi
+app.MapPost("/api/notifications", async (Notification notification, AppDbContext db) =>
+{
+    notification.CreatedAt = DateTime.Now;
+    db.Notifications.Add(notification);
+    await db.SaveChangesAsync();
+    return Results.Ok(notification);
+});
+
+app.MapGet("/api/notifications", async (AppDbContext db) =>
+{
+    var notifications = await db.Notifications
+        .OrderByDescending(n => n.CreatedAt)
+        .ToListAsync();
+    return Results.Ok(notifications);
+});
+app.MapGet("/api/notifications/active", async (AppDbContext db, string role) =>
+{
+    var notifications = await db.Notifications
+        .Where(n => n.Role == role && n.Status == "OnGoing")
+        .OrderByDescending(n => n.CreatedAt)
+        .ToListAsync();
+    return Results.Ok(notifications);
+});
+app.MapPut("/api/notifications/done", async (int taskId, string role, AppDbContext db) =>
+{
+    var notification = await db.Notifications
+        .FirstOrDefaultAsync(n => n.TaskId == taskId && n.Role == role && n.Status == "OnGoing");
+
+    if (notification == null)
+        return Results.NotFound(new { message = "Notification not found" });
+
+    notification.IsRead = true;
+
+    string nextRole = role switch
+    {
+        "pic" => "spv",
+        "spv" => "manager",
+        _ => null
+    };
+
+    if (nextRole != null)
+    {
+        // Tambahkan notifikasi baru untuk role berikutnya
+        var newNotification = new Notification
+        {
+            Title = "Task Update",
+            Message = $"Task dengan ID {taskId} siap untuk dilakukan done oleh {nextRole.ToUpper()}.",
+            TaskId = taskId,
+            Role = nextRole,
+            CreatedAt = DateTime.Now,
+            Status = "OnGoing"
+        };
+        db.Notifications.Add(newNotification);
+    }
+    else
+    {
+        // Tandai notifikasi sebagai selesai jika role terakhir menyelesaikan
+        notification.Status = "Completed";
+    }
+
+    await db.SaveChangesAsync();
+    return Results.Ok(notification);
+});
+app.MapPut("/api/notifications/undone", async (int taskId, string role, AppDbContext db) =>
+{
+    var notification = await db.Notifications
+        .FirstOrDefaultAsync(n => n.TaskId == taskId && n.Role == role);
+
+    if (notification == null)
+        return Results.NotFound(new { message = "Notification not found" });
+
+    notification.IsRead = false;
+    notification.Status = "OnGoing";
+
+    await db.SaveChangesAsync();
+    return Results.Ok(notification);
+});
+app.MapDelete("/api/notifications/{id}", async (int id, AppDbContext db) =>
+{
+    var notification = await db.Notifications.FindAsync(id);
+    if (notification == null)
+        return Results.NotFound(new { message = "Notification not found" });
+
+    db.Notifications.Remove(notification);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+app.MapGet("/api/notifications/task/{taskId}", async (AppDbContext db, int taskId) =>
+{
+    var notifications = await db.Notifications
+        .Where(n => n.TaskId == taskId)
+        .OrderByDescending(n => n.CreatedAt)
+        .ToListAsync();
+    return Results.Ok(notifications);
+});
+
+app.MapPost("/api/tasks", async (SupportReportAPI.Models.Task task, AppDbContext db) =>
+{
+    task.CreatedAt = DateTime.Now;
+    db.Tasks.Add(task);
+    await db.SaveChangesAsync();
+
+    // Tambahkan notifikasi untuk PIC
+    var notification = new Notification
+    {
+        Title = "Task Baru",
+        Message = $"Task dengan ID {task.Id} baru saja dibuat dan perlu dilakukan done oleh PIC.",
+        TaskId = (int)task.Id,
+        Role = "pic",
+        CreatedAt = DateTime.Now,
+        Status = "OnGoing"
+    };
+
+    db.Notifications.Add(notification);
+    await db.SaveChangesAsync();
+
+    return Results.Ok(task);
+});
+
+
+app.MapGet("/api/notifications/dashboard", async (AppDbContext db) =>
+{
+    var notifications = await db.Notifications
+        .Where(n => n.Status == "OnGoing")
+        .OrderByDescending(n => n.CreatedAt)
+        .ToListAsync();
+
+    return Results.Ok(notifications);
+});
+app.MapGet("/api/notifications/{id}", async (AppDbContext db, int id) =>
+{
+    var notification = await db.Notifications.FindAsync(id);
+    if (notification == null)
+        return Results.NotFound(new { message = "Notification not found" });
+
+    return Results.Ok(notification);
+});
+
+
+
+
+// EndOfStreamException notifikasi 
 
 app.Run();
 
@@ -1218,6 +1519,8 @@ namespace SupportReportAPI.Models
         public DbSet<UserRole> UserRoles { get; set; }
         public DbSet<PanelProcess> PanelProcesses { get; set; }
         public DbSet<InquiryAIGeneration> InquiryAIGenerations { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
+
 
 
         public override int SaveChanges()
@@ -1400,4 +1703,16 @@ public class PanelProcess
     public string PanelType { get; set; } = string.Empty;
     public string ProcessName { get; set; } = string.Empty;
     public double Minutes { get; set; }
+}
+
+public class Notification : BaseModel
+{
+    [Key]
+    public int Id { get; set; } // Primary Key
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public int TaskId { get; set; } // Relasi ke Task
+    public string Role { get; set; } = string.Empty; // Role terkait notifikasi (PIC, SPV, Manager)
+    public bool IsRead { get; set; } = false; // Status apakah notifikasi sudah dibaca
+    public string Status { get; set; } = "OnGoing"; // Status notifikasi (OnGoing, Completed)
 }

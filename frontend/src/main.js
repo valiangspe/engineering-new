@@ -81,6 +81,15 @@ const routes = [
   { path: "/addRole", component: role},
 
   { path: "/engineerTimeProcess", component: engTimeProcess },
+  // { 
+  //   path: "/activity/:taskId?", 
+  //   name: "activity", 
+  //   component: Activity, 
+  //   props: true,
+  //   alias: "/wo" // Alias untuk mendukung /wo
+  // },
+  
+
 ];
 
 const router = createRouter({

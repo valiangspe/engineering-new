@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from "vue";
+import ExcelJS from "exceljs";
 import {
   fetchEngineeringDetailProblems,
   fetchExtCrmPurchaseOrdersProtoSimple,
@@ -36,6 +37,73 @@ const fetchWarehouseItemsData = async () => {
   }
 };
 
+
+const exportToExcel = async () => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Report");
+
+  // Tambahkan header
+  worksheet.columns = [
+    { header: "No", key: "no", width: 5 },
+    { header: "ID", key: "id", width: 10 },
+    { header: "Date", key: "date", width: 15 },
+    { header: "PO Number", key: "po_number", width: 20 },
+    { header: "Customer Name", key: "customer_name", width: 20 },
+    { header: "Project Name", key: "project_name", width: 20 },
+    { header: "Description", key: "description", width: 30 },
+    { header: "Qty", key: "qty", width: 10 },
+    { header: "Reduction (Rp)", key: "reduction", width: 15 },
+    { header: "Increase (Rp)", key: "increase", width: 15 },
+    { header: "Remark", key: "remark", width: 20 },
+  ];
+
+  // Tambahkan data
+  ecns.value.forEach((e, i) => {
+    const foundPO = pos.value.find(
+      (p) => `${p?.id}` === `${e?.extPurchaseOrderId}`
+    );
+    const foundJob = jobs.value?.jobs?.find(
+      (j) => `${j?.masterJavaBaseModel?.id}` === `${e?.extJobId}`
+    );
+
+    worksheet.addRow({
+      no: i + 1,
+      id: e?.id || "",
+      date: e?.tgl
+        ? Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(
+            new Date(e?.tgl ?? "")
+          )
+        : "",
+      po_number: foundPO?.purchaseOrderNumber || "",
+      customer_name: foundPO?.account?.name || "",
+      project_name: foundJob?.name || "",
+      description: e?.detailProblem || "",
+      qty: e?.items?.length || 0,
+      reduction: Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(e?.reduction || 0),
+      increase: Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(e?.increase || 0),
+      remark: e?.remark || "",
+    });
+  });
+
+  // Simpan file
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+
+  // Unduh file
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Engineering_Report.xlsx";
+  a.click();
+  window.URL.revokeObjectURL(url);
+};
+
 const fetchPosData = async () => {
   const d = await fetchExtCrmPurchaseOrdersProtoSimple();
 
@@ -53,6 +121,11 @@ fetchWarehouseItemsData();
   <div class="m-3">
     <div class="d-flex">
       <h4>ECN</h4>
+      <div>
+        <button @click="exportToExcel" class="btn btn-sm btn-success mx-2">
+          Export to Excel
+        </button>
+      </div>
       <div>
         <a href="/#/ecn/add">
           <button class="btn btn-sm btn-primary mx-2 px-1 py-0">Add</button>

@@ -19,7 +19,10 @@ import { useNotificationStore } from "./notificationStore";
 import { v4 as uuidv4 } from 'uuid'; // Tambahkan UUID untuk id unik
 import { useRoute } from "vue-router";
 // import axios from 'axios';
+// import { useNotificationStore } from "@/stores/notificationStore";
 
+const notificationStore = useNotificationStore(); 
+// const route = useRoute();
 const fetchUsersData = async () => {
   try {
     const d = await fetchUsers();
@@ -89,30 +92,42 @@ const userRoles = computed(() => {
 });
 
 
+const userRole = ref(localStorage.getItem('userRole') || ctx.userRole);
 
 
-// Memuat data aktivitas saat halaman dimuat dan memeriksa apakah ada query taskId
-onMounted(() => {
-  const taskId = route.query.taskId; // Ambil taskId dari query
-  if (taskId) {
-    openTaskById(taskId); // Buka task berdasarkan taskId
-  }
+onMounted(async () => {
+  await fetchEngineeringActivitiesData();
 });
 
 
 
-const openTaskById = (taskId) => {
-  const foundActivity = activities.value.find((activity) =>
-    activity.tasks.some((task) => task.id === taskId)
-  );
-
-  if (foundActivity) {
-    selectedActivity.value = foundActivity;
-    dialog.value = true;
-  } else {
-    console.warn(`Task dengan ID ${taskId} tidak ditemukan.`);
+onMounted(() => {
+  const taskId = route.query.taskId; // Ambil taskId dari query
+  if (taskId) {
+    openTaskById(taskId); // Panggil fungsi untuk memuat task
   }
-};
+});
+
+async function openTaskById(taskId) {
+  try {
+    const response = await fetch(`/api/dashboard/tasks/${taskId}`); // Ganti dengan endpoint Anda
+    if (!response.ok) {
+      throw new Error("Gagal memuat task");
+    }
+
+    const taskData = await response.json();
+    console.log("Task data:", taskData);
+
+    // Simpan task yang dipilih ke dalam state untuk ditampilkan di tabel
+    selectedTask.value = taskData;
+
+    // Scroll atau fokus langsung ke bagian tabel jika diperlukan
+    document.getElementById("tasksTable").scrollIntoView({ behavior: "smooth" });
+  } catch (error) {
+    console.error("Error memuat task:", error);
+  }
+}
+
 
 
 // const openTaskById = (taskId) => {
@@ -143,33 +158,25 @@ const fetchEngineeringActivitiesData = async () => {
 
 const undoDone = async (task, role) => {
   try {
-    let previousRole = null;
-
-    if (role === 'spv') {
-      previousRole = 'pic';
-    } else if (role === 'manager') {
-      previousRole = 'spv';
-    }
-
-    // Update notification store dengan role sebelumnya atau set ulang ke null
-    const notificationStore = useNotificationStore();
-    notificationStore.updateNotification(task, previousRole);
-
-    // Simpan perubahan ke backend jika diperlukan
-    await fetch(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/tasks/${task.id}`,
+    const response = await fetch(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/undo-done?taskId=${task.id}&role=${role}`,
       {
-        method: 'put',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(task),
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
       }
     );
 
-    console.log(`Task ID ${task.id} undone for role: ${role}`);
+    if (response.ok) {
+      console.log(`Undo done untuk task ID ${task.id} oleh role ${role} berhasil.`);
+      loadNotifications();
+    } else {
+      console.error("Gagal melakukan undo done:", response.status);
+    }
   } catch (error) {
-    console.error('Error undoing task done status:', error);
+    console.error("Error saat melakukan undo done:", error);
   }
 };
+
 
 
 
@@ -221,6 +228,22 @@ const loadNotifications = async () => {
     console.error("Error memuat notifikasi:", error);
   }
 };
+async function loadActivityByTaskId(taskId) {
+    try {
+        const response = await fetch(`/api/dashboard/activities?taskId=${taskId}`);
+        if (!response.ok) {
+            throw new Error("Gagal memuat aktivitas");
+        }
+
+        const activityData = await response.json();
+        console.log("Activity data:", activityData);
+        selectedActivity.value = activityData[0]; // Ambil aktivitas pertama jika ada
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+
 
 // onMounted(() => {
 //   loadNotifications();
@@ -306,36 +329,27 @@ const fetchWoTemplatesData = async () => {
 
 const handleDone = async (task, role) => {
   try {
-    let nextRole = null;
-
-    if (role === "pic" && task.completedDatePic) {
-      nextRole = "spv";
-    } else if (role === "spv" && task.completedDateSpv) {
-      nextRole = "manager";
-    } else if (role === "manager" && task.completedDateManager) {
-      nextRole = null;
-    }
-
-    // Update notifikasi di backend
-    await fetch(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/update-task-status?taskId=${task.id}&role=${role}`,
+    const response = await fetch(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/done?taskId=${task.id}&role=${role}`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
       }
     );
 
-    if (nextRole) {
-      console.log(`Notifikasi untuk role ${nextRole} berhasil diperbarui.`);
+    if (response.ok) {
+      const updatedNotification = await response.json();
+      console.log(`Task ${task.id} selesai untuk role ${role}.`);
+      // Update notifikasi
+      loadNotifications();
     } else {
-      console.log(`Task ${task.id} selesai dan tidak ada role berikutnya.`);
+      console.error("Gagal memperbarui status task:", response.status);
     }
-
-    console.log(`Task ID ${task.id} updated successfully`);
   } catch (error) {
-    console.error("Error updating task:", error);
+    console.error("Error saat memperbarui status task:", error);
   }
 };
+
 
 
 
