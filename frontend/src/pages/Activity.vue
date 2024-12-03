@@ -20,7 +20,8 @@ import { v4 as uuidv4 } from 'uuid'; // Tambahkan UUID untuk id unik
 import { useRoute } from "vue-router";
 // import axios from 'axios';
 // import { useNotificationStore } from "@/stores/notificationStore";
-
+const taskDialog = ref(false); // Mengontrol dialog
+const selectedTask = ref(null); // Menyimpan data task yang dipilih
 const notificationStore = useNotificationStore(); 
 // const route = useRoute();
 const fetchUsersData = async () => {
@@ -104,7 +105,7 @@ onMounted(async () => {
 onMounted(() => {
   const taskId = route.query.taskId; // Ambil taskId dari query
   if (taskId) {
-    openTaskById(taskId); // Panggil fungsi untuk memuat task
+    loadTaskById(taskId); // Panggil fungsi untuk memuat task
   }
 });
 
@@ -228,21 +229,34 @@ const loadNotifications = async () => {
     console.error("Error memuat notifikasi:", error);
   }
 };
-async function loadActivityByTaskId(taskId) {
-    try {
-        const response = await fetch(`/api/dashboard/activities?taskId=${taskId}`);
-        if (!response.ok) {
-            throw new Error("Gagal memuat aktivitas");
-        }
+// async function loadActivityByTaskId(taskId) {
+//     try {
+//         const response = await fetch(`/api/dashboard/activities?taskId=${taskId}`);
+//         if (!response.ok) {
+//             throw new Error("Gagal memuat aktivitas");
+//         }
 
-        const activityData = await response.json();
-        console.log("Activity data:", activityData);
-        selectedActivity.value = activityData[0]; // Ambil aktivitas pertama jika ada
-    } catch (error) {
-        console.error("Error:", error);
+//         const activityData = await response.json();
+//         console.log("Activity data:", activityData);
+//         selectedActivity.value = activityData[0]; // Ambil aktivitas pertama jika ada
+//     } catch (error) {
+//         console.error("Error:", error);
+//     }
+// }
+
+async function loadTaskById(taskId) {
+  try {
+    const response = await fetch(`/api/dashboard/tasks/${taskId}`);
+    if (!response.ok) {
+      throw new Error("Failed to load task data");
     }
+    const task = await response.json();
+    selectedTask.value = task; // Simpan data task ke reactive state
+    taskDialog.value = true; // Tampilkan dialog
+  } catch (error) {
+    console.error("Error loading task:", error);
+  }
 }
-
 
 
 // onMounted(() => {
@@ -1213,7 +1227,7 @@ const alertx = (content) => {
   </div>
 </td> -->
 <td class="border border-dark">
-  <div v-if="!task.completedDatePic && userRoles.includes('pic')">
+  <div v-if="!task.completedDatePic && userRoles.includes('pic'&& `manager`)">
     <input
       type="date"
       class="form-control form-control-sm"
@@ -1221,7 +1235,7 @@ const alertx = (content) => {
         (e) => {
           task.completedDatePic = `${e.target.value}T00:00:00Z`;
           task.completedByPicId = ctx?.user?.id;
-          handleDone(task, 'pic'); // Notify and move to the next role
+          handleDone(task, 'pic'&& `manager`); // Notify and move to the next role
         }
       "
     />
@@ -1237,7 +1251,7 @@ const alertx = (content) => {
         () => {
           task.completedDatePic = null;
           task.completedByPicId = null;
-          undoDone(task, 'pic'); // Undo action and update notification
+          undoDone(task, 'pic'&& `manager`); // Undo action and update notification
         }
       "
     >
@@ -1247,7 +1261,7 @@ const alertx = (content) => {
 </td>
 
 <td class="border border-dark">
-  <div v-if="!task.completedDateSpv && task.completedDatePic && userRoles.includes('spv')">
+  <div v-if="!task.completedDateSpv && task.completedDatePic && userRoles.includes('spv' && `manager`)">
     <input
       type="date"
       class="form-control form-control-sm"
@@ -1255,7 +1269,7 @@ const alertx = (content) => {
         (e) => {
           task.completedDateSpv = `${e.target.value}T00:00:00Z`;
           task.completedBySpvId = ctx?.user?.id;
-          handleDone(task, 'spv'); // Notify and move to the next role
+          handleDone(task, 'spv' && `manager`); // Notify and move to the next role
         }
       "
     />
@@ -1271,7 +1285,7 @@ const alertx = (content) => {
         () => {
           task.completedDateSpv = null;
           task.completedBySpvId = null;
-          undoDone(task, 'spv'); // Undo action and update notification
+          undoDone(task, 'spv' && `manager`); // Undo action and update notification
         }
       "
     >
@@ -1435,4 +1449,37 @@ const alertx = (content) => {
       </v-card>
     </v-dialog>
   </div>
+
+
+  <!-- dialog by task id  -->
+
+  <v-dialog v-model="taskDialog" fullscreen>
+  <v-card max-width="400">
+    <v-card-title class="text-h5">Task Details</v-card-title>
+    <v-card-text>
+      <div v-if="selectedTask">
+        <strong>Description:</strong> {{ selectedTask.description }} <br />
+        <strong>From:</strong> {{ selectedTask.from }} <br />
+        <strong>To:</strong> {{ selectedTask.to }} <br />
+        <strong>Hours:</strong> {{ selectedTask.hours }} <br />
+        <strong>PIC:</strong>
+        <ul>
+          <li v-for="pic in selectedTask.inCharges" :key="pic.id">
+            {{ pic.name }}
+          </li>
+        </ul>
+        <strong>Remarks:</strong> {{ selectedTask.remark }}
+      </div>
+      <div v-else>
+        <p>Loading task details...</p>
+      </div>
+    </v-card-text>
+    <v-card-actions>
+      <v-btn color="primary" text @click="taskDialog = false">Close</v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
+
+
+
 </template>
