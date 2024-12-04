@@ -99,11 +99,12 @@ const exportToExcel = async () => {
       ?.filter((i) => !i?.deletedAt)
       ?.reduce((acc, i) => {
         const value = (i?.snapshotPrice ?? 0) * (i?.qty ?? 0);
-        return i?.typeIncreaseDecrease === 0 ? acc + value : acc - value;
+
+        return i?.typeIncreaseDecrease !== 1 ? acc + value : acc - value;
       }, 0);
 
     const increase = e?.items
-      ?.filter((i) => !i?.deletedAt && i?.typeIncreaseDecrease === 0)
+      ?.filter((i) => !i?.deletedAt && i?.typeIncreaseDecrease !== 1)
       ?.reduce((acc, i) => acc + (i?.snapshotPrice ?? 0) * (i?.qty ?? 0), 0);
 
     const decrease = e?.items
@@ -293,7 +294,7 @@ fetchWarehouseItemsData();
                         ?.reduce((acc, i) => {
                           const val = (i?.snapshotPrice ?? 0) * (i?.qty ?? 0);
 
-                          if (i?.typeIncreaseDecrease === 0) {
+                          if (i?.typeIncreaseDecrease !== 1) {
                             return acc + val;
                           } else {
                             return acc - val;
@@ -310,7 +311,7 @@ fetchWarehouseItemsData();
                     }).format(
                       e?.items
                         ?.filter(
-                          (i) => !i?.deletedAt && i?.typeIncreaseDecrease === 0
+                          (i) => !i?.deletedAt && i?.typeIncreaseDecrease !== 1
                         )
                         ?.reduce(
                           (acc, i) =>
