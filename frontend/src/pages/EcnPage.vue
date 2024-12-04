@@ -75,7 +75,7 @@ const exportToExcel = async () => {
     let partNumbersWithQty = [];
     try {
       const response = await axios.get(
-        `http://localhost:5172/engineeringDetailProblems/${e.id}`
+        `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
       );
       const detailData = response.data;
 
