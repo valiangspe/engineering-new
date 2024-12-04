@@ -1251,7 +1251,7 @@ const alertx = (content) => {
         () => {
           task.completedDatePic = null;
           task.completedByPicId = null;
-          undoDone(task, 'pic'&& `manager`); // Undo action and update notification
+          undoDone(task, 'pic'); // Undo action and update notification
         }
       "
     >
@@ -1285,7 +1285,7 @@ const alertx = (content) => {
         () => {
           task.completedDateSpv = null;
           task.completedBySpvId = null;
-          undoDone(task, 'spv' && `manager`); // Undo action and update notification
+          undoDone(task, 'spv'); // Undo action and update notification
         }
       "
     >

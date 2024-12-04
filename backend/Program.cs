@@ -17,6 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
 
 
+
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonDateTimeConverter());
