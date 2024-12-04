@@ -1226,8 +1226,9 @@ const alertx = (content) => {
     </button>
   </div>
 </td> -->
+<!-- PIC Section -->
 <td class="border border-dark">
-  <div v-if="!task.completedDatePic && userRoles.includes('pic'&& `manager`)">
+  <div v-if="!task.completedDatePic && (userRoles.includes('pic') || userRoles.includes('manager'))">
     <input
       type="date"
       class="form-control form-control-sm"
@@ -1235,7 +1236,7 @@ const alertx = (content) => {
         (e) => {
           task.completedDatePic = `${e.target.value}T00:00:00Z`;
           task.completedByPicId = ctx?.user?.id;
-          handleDone(task, 'pic'&& `manager`); // Notify and move to the next role
+          handleDone(task, 'pic'); // Notify and move to the next role
         }
       "
     />
@@ -1260,8 +1261,9 @@ const alertx = (content) => {
   </div>
 </td>
 
+<!-- SPV Section -->
 <td class="border border-dark">
-  <div v-if="!task.completedDateSpv && task.completedDatePic && userRoles.includes('spv' && `manager`)">
+  <div v-if="!task.completedDateSpv && task.completedDatePic && (userRoles.includes('spv') || userRoles.includes('manager'))">
     <input
       type="date"
       class="form-control form-control-sm"
@@ -1269,7 +1271,7 @@ const alertx = (content) => {
         (e) => {
           task.completedDateSpv = `${e.target.value}T00:00:00Z`;
           task.completedBySpvId = ctx?.user?.id;
-          handleDone(task, 'spv' && `manager`); // Notify and move to the next role
+          handleDone(task, 'spv'); // Notify and move to the next role
         }
       "
     />
@@ -1294,6 +1296,7 @@ const alertx = (content) => {
   </div>
 </td>
 
+<!-- Manager Section -->
 <td class="border border-dark">
   <div v-if="!task.completedDateManager && task.completedDateSpv && userRoles.includes('manager')">
     <input
