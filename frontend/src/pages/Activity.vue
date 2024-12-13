@@ -748,23 +748,40 @@ const alertx = (content) => {
               {{ d.filteredTasks?.filter((t) => !t?.deletedAt)?.length ?? 0 }}
             </td>
             <td class="border border-dark p-0 m-0">
-              <div
-                :style="`background-color: ${chroma
-                  .scale(['red', 'yellow', 'green'])(
-                    (d.filteredTasks?.filter((t) => t?.completedDate)?.length ??
-                      0) / (d.filteredTasks?.length ?? 1)
-                  )
-                  .alpha(0.6)
-                  .hex()}`"
-              >
-                <strong>
-                  {{
-                    d.filteredTasks?.filter((t) => t?.completedDate)?.length ??
-                    0
-                  }}
-                </strong>
-              </div>
-            </td>
+  <div
+    :style="`background-color: ${(() => {
+      const totalTasks = d.filteredTasks?.length ?? 0;
+      const doneTasks = d.filteredTasks?.filter((t) => 
+        t?.completedDatePic || t?.completedDateSpv || t?.completedDateManager
+      )?.length ?? 0;
+
+      if (doneTasks === 0) {
+        // Tidak ada yang done, warna merah
+        return 'red';
+      } else if (d.filteredTasks?.every((t) => 
+        t?.completedDatePic && t?.completedDateSpv && t?.completedDateManager
+      )) {
+        // Semua sudah selesai, warna hijau
+        return 'green';
+      } else {
+        // Sebagian sudah selesai, warna kuning
+        return 'yellow';
+      }
+    })()}`"
+  >
+    <strong>
+      {{
+        d.filteredTasks?.filter((t) => 
+          t?.completedDatePic && t?.completedDateSpv && t?.completedDateManager
+        )?.length ?? 0
+      }}
+      /
+      {{ d.filteredTasks?.length ?? 0 }}
+    </strong>
+  </div>
+</td>
+
+
             <td class="border border-dark p-0 m-0">
               {{
                 d.filteredTasks?.reduce(
@@ -1228,31 +1245,43 @@ const alertx = (content) => {
 </td> -->
 <!-- PIC Section -->
 <td class="border border-dark">
-  <div v-if="!task.completedDatePic && (userRoles.includes('pic') || userRoles.includes('manager'))">
+  <!-- PIC yang dipilih, manajer, atau spv bisa mengisi done -->
+  <div 
+    v-if="
+      !task.completedDatePic &&
+      (
+        task.inCharges?.some(ic => ic.extUserId === ctx?.user?.id) && userRoles.includes('pic') || 
+        userRoles.some(role => ['spv', 'manager'].includes(role))
+      )
+    "
+  >
     <input
       type="date"
       class="form-control form-control-sm"
       @blur="
         (e) => {
+          if (!e.target.value) return;
           task.completedDatePic = `${e.target.value}T00:00:00Z`;
           task.completedByPicId = ctx?.user?.id;
-          handleDone(task, 'pic'); // Notify and move to the next role
+          handleDone(task, 'pic');
         }
       "
     />
   </div>
+
   <div v-else-if="task.completedDatePic">
     {{ formatDate(task.completedDatePic) }}
     <br />
     Done by: 
     {{ users.find(user => user.id === task.completedByPicId)?.name }} || PIC
     <button
+      v-if="userRoles.some(role => ['pic', 'spv', 'manager'].includes(role))"
       class="btn btn-sm btn-secondary mt-2"
       @click="
         () => {
           task.completedDatePic = null;
           task.completedByPicId = null;
-          undoDone(task, 'pic'); // Undo action and update notification
+          undoDone(task, 'pic');
         }
       "
     >
@@ -1261,33 +1290,45 @@ const alertx = (content) => {
   </div>
 </td>
 
+
 <!-- SPV Section -->
 <td class="border border-dark">
-  <div v-if="!task.completedDateSpv && task.completedDatePic && (userRoles.includes('spv') || userRoles.includes('manager'))">
+  <!-- SPV atau manajer bisa mengisi done -->
+  <div 
+    v-if="
+      !task.completedDateSpv &&
+      task.completedDatePic &&
+      (userRoles.includes('spv') || userRoles.includes('manager'))
+    "
+  >
     <input
       type="date"
       class="form-control form-control-sm"
       @blur="
         (e) => {
+          if (!e.target.value) return;
           task.completedDateSpv = `${e.target.value}T00:00:00Z`;
           task.completedBySpvId = ctx?.user?.id;
-          handleDone(task, 'spv'); // Notify and move to the next role
+          handleDone(task, 'spv');
         }
       "
     />
   </div>
+
+  <!-- Tampilkan data jika sudah done -->
   <div v-else-if="task.completedDateSpv">
     {{ formatDate(task.completedDateSpv) }}
     <br />
     Done by: 
     {{ users.find(user => user.id === task.completedBySpvId)?.name }} || SPV
     <button
+      v-if="userRoles.some(role => ['spv', 'manager'].includes(role))"
       class="btn btn-sm btn-secondary mt-2"
       @click="
         () => {
           task.completedDateSpv = null;
           task.completedBySpvId = null;
-          undoDone(task, 'spv'); // Undo action and update notification
+          undoDone(task, 'spv');
         }
       "
     >
@@ -1296,33 +1337,43 @@ const alertx = (content) => {
   </div>
 </td>
 
+
 <!-- Manager Section -->
 <td class="border border-dark">
-  <div v-if="!task.completedDateManager && task.completedDateSpv && userRoles.includes('manager')">
+  <div 
+    v-if="
+      !task.completedDateManager &&
+      task.completedDateSpv &&
+      userRoles.includes('manager')
+    "
+  >
     <input
       type="date"
       class="form-control form-control-sm"
       @blur="
         (e) => {
+          if (!e.target.value) return;
           task.completedDateManager = `${e.target.value}T00:00:00Z`;
           task.completedByManagerId = ctx?.user?.id;
-          handleDone(task, 'manager'); // Notify task completion
+          handleDone(task, 'manager');
         }
       "
     />
   </div>
+
   <div v-else-if="task.completedDateManager">
     {{ formatDate(task.completedDateManager) }}
     <br />
     Done by: 
     {{ users.find(user => user.id === task.completedByManagerId)?.name }} || Manager
     <button
+      v-if="userRoles.includes('manager')"
       class="btn btn-sm btn-secondary mt-2"
       @click="
         () => {
           task.completedDateManager = null;
           task.completedByManagerId = null;
-          undoDone(task, 'manager'); // Undo action and update notification
+          undoDone(task, 'manager');
         }
       "
     >
@@ -1330,7 +1381,6 @@ const alertx = (content) => {
     </button>
   </div>
 </td>
-
 
                       <td class="border border-dark">
                         <input
@@ -1348,75 +1398,66 @@ const alertx = (content) => {
                         />
                       </td>
 
-                      <td class="border border-dark">
-                        <v-autocomplete
-                          :items="
-                            users.map((t) => ({
-                              label: `${t?.name} (${
-                                departments.find(
-                                  (d) => `${d?.id}` === `${t?.departmentId}`
-                                )?.name
-                              })`,
-                              value: t,
-                            }))
-                          "
-                          :item-title="(u) => u?.label"
-                          @update:model-value="
-                            (u) => {
-                              if (!task.inCharges) {
-                                task.inCharges = [];
-                              }
-                              task.inCharges = [
-                                ...task.inCharges,
-                                { extUserId: u?.id },
-                              ];
-                            }
-                          "
-                        ></v-autocomplete>
-                        <ol>
-                          <li
-                            v-for="(ic, i) in task?.inCharges?.filter(
-                              (ic) => !ic?.deletedAt
-                            ) ?? []"
-                          >
-                            <template
-                              v-for="d in [
-                                {
-                                  user: users.find(
-                                    (t) => t?.id === ic?.extUserId
-                                  ),
-                                },
-                              ]"
-                            >
-                              <div>
-                                <div>
-                                  {{
-                                    `${d.user?.name} (${
-                                      departments.find(
-                                        (dx) =>
-                                          `${dx?.id}` ===
-                                          `${d?.user?.departmentId}`
-                                      )?.name
-                                    })`
-                                  }}
-                                </div>
-                                <span
-                                  ><button
-                                    @click="
-                                      () => {
-                                        ic.deletedAt = new Date().toISOString();
-                                      }
-                                    "
-                                    class="btn btn-sm btn-outline-danger px-1 py-0"
-                                  >
-                                    Delete
-                                  </button></span
-                                >
-                              </div></template
-                            >
-                          </li>
-                        </ol>
-                      </td>
+                     
+<td class="border border-dark">
+  <!-- Autocomplete untuk memilih PIC -->
+  <v-autocomplete
+    :items="
+      users.map((t) => ({
+        label: `${t?.name} (${
+          departments.find((d) => `${d?.id}` === `${t?.departmentId}`)?.name
+        })`,
+        value: t,
+      }))
+    "
+    :item-title="(u) => u?.label"
+    @update:model-value="
+      (u) => {
+        if (!u) return;
+
+        if (!task.inCharges) {
+          task.inCharges = [];
+        }
+
+        // Tambahkan user ke inCharges jika belum ada
+        if (!task.inCharges.some((ic) => ic.extUserId === u?.id)) {
+          task.inCharges.push({ extUserId: u?.id, username: u?.username });
+        }
+      }
+    "
+  ></v-autocomplete>
+
+  <!-- Daftar PIC yang dipilih -->
+  <ol>
+    <li
+      v-for="(ic, i) in task?.inCharges?.filter((ic) => !ic?.deletedAt) ?? []"
+      :key="i"
+    >
+      <template v-for="d in [{ user: users.find((t) => t?.id === ic?.extUserId) }]">
+        <div>
+          {{
+            `${d.user?.name} (${
+              departments.find((dx) => `${dx?.id}` === `${d?.user?.departmentId}`)?.name
+            })`
+          }}
+        </div>
+        <span>
+          <button
+            @click="
+              () => {
+                ic.deletedAt = new Date().toISOString(); // Tandai sebagai dihapus
+              }
+            "
+            class="btn btn-sm btn-outline-danger px-1 py-0"
+          >
+            Delete
+          </button>
+        </span>
+      </template>
+    </li>
+  </ol>
+</td>
+                  
                       <td class="border border-dark">
                         <textarea
                           placeholder="Remark..."
