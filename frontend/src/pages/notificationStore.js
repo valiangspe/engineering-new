@@ -1,25 +1,37 @@
 import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
-import { v4 as uuidv4 } from 'uuid';
 
 export const useNotificationStore = defineStore('notificationStore', () => {
   const notifications = ref([]);
 
+  // Muat notifikasi dari localStorage saat inisialisasi store
   if (localStorage.getItem('notifications')) {
     notifications.value = JSON.parse(localStorage.getItem('notifications'));
     console.log('Notifikasi dimuat dari localStorage:', notifications.value);
   }
 
+  // Fungsi untuk menambahkan notifikasi baru (mencegah duplikat berdasarkan taskId dan role)
   const addNotification = async (task, role = "pic") => {
     try {
+      // Cek duplikat berdasarkan taskId dan role
+      const existingNotification = notifications.value.find(
+        (n) => n.taskId === task.id && n.role === role
+      );
+
+      if (existingNotification) {
+        console.log(`Notifikasi untuk task ID ${task.id} dan role ${role} sudah ada.`);
+        return; // Hentikan jika notifikasi sudah ada
+      }
+
       const newNotification = {
         title: `Task Baru: ${task.description}`,
-        message: `Task dengan ID ${task.id} baru saja ditambahkan dan perlu dilakukan done.`,
+        message: `Task dengan ID ${task.id} perlu dilakukan done.`,
         createdAt: new Date().toISOString(),
         taskId: task.id,
         role,
       };
-  
+
+      // Kirim notifikasi ke backend
       const response = await fetch(
         `${import.meta.env.VITE_APP_BASE_URL}/api/notifications`,
         {
@@ -28,10 +40,11 @@ export const useNotificationStore = defineStore('notificationStore', () => {
           body: JSON.stringify(newNotification),
         }
       );
-  
+
       if (response.ok) {
-        notifications.value.push(await response.json());
-        console.log("Notifikasi baru berhasil ditambahkan.");
+        const savedNotification = await response.json();
+        notifications.value.push(savedNotification); // Tambahkan ke store
+        console.log("Notifikasi baru berhasil ditambahkan:", savedNotification);
       } else {
         console.error("Gagal menambahkan notifikasi baru:", response.status);
       }
@@ -39,77 +52,87 @@ export const useNotificationStore = defineStore('notificationStore', () => {
       console.error("Error saat menambahkan notifikasi baru:", error);
     }
   };
-  
 
-  const updateNotification = async (task, nextRole) => {
+  // Fungsi untuk memperbarui notifikasi (jika sudah ada)
+  const updateNotification = async (task, nextRole = null) => {
     try {
-      const notification = notifications.value.find(
-        (n) => n.taskId === task.id && n.role === nextRole
-      );
-  
-      if (!notification) {
-        await addNotification(task, nextRole);
-        return;
-      }
-  
-      notification.role = nextRole || null;
-      notification.title = nextRole
-        ? `Task Update: ${task.description}`
-        : `Task Completed: ${task.description}`;
-      notification.message = nextRole
-        ? `Task dengan ID ${task.id} siap untuk dilakukan "done" oleh ${nextRole.toUpperCase()}.`
-        : `Task dengan ID ${task.id} telah selesai.`;
-  
-      await fetch(
-        `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/${notification.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(notification),
+      // Cari notifikasi berdasarkan taskId
+      const index = notifications.value.findIndex((n) => n.taskId === task.id);
+
+      if (index !== -1) {
+        // Update notifikasi lama
+        notifications.value[index] = {
+          ...notifications.value[index],
+          role: nextRole || null,
+          title: nextRole
+            ? `Task Update: ${task.description}`
+            : `Task Completed: ${task.description}`,
+          message: nextRole
+            ? `Task dengan ID ${task.id} siap dilakukan "done" oleh ${nextRole.toUpperCase()}.`
+            : `Task dengan ID ${task.id} telah selesai.`,
+          createdAt: new Date().toISOString(),
+        };
+
+        // Kirim pembaruan ke backend
+        const response = await fetch(
+          `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/${notifications.value[index].id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(notifications.value[index]),
+          }
+        );
+
+        if (response.ok) {
+          console.log("Notifikasi berhasil diperbarui:", notifications.value[index]);
+        } else {
+          console.error("Gagal memperbarui notifikasi:", response.status);
         }
-      );
-  
-      console.log("Notifikasi berhasil diperbarui.");
+      } else {
+        // Jika notifikasi tidak ditemukan, tambahkan sebagai notifikasi baru
+        console.log("Notifikasi belum ada, menambahkan notifikasi baru.");
+        await addNotification(task, nextRole);
+      }
     } catch (error) {
       console.error("Error saat memperbarui notifikasi:", error);
     }
   };
-  
 
-  const removeNotification = (id) => {
-    console.log(`Menghapus notifikasi dengan ID: ${id}`);
-    notifications.value = notifications.value.filter(n => n.id !== id);
-  };
-
-  const syncTaskToBackend = async (task) => {
+  // Fungsi untuk menghapus notifikasi
+  const removeNotification = async (id) => {
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_APP_BASE_URL}/api/tasks/${task.taskId}`,
+        `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/${id}`,
         {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(task),
+          method: "DELETE",
         }
       );
-      if (!response.ok) {
-        console.error('Gagal menyinkronkan task ke backend:', response.status);
+
+      if (response.ok) {
+        notifications.value = notifications.value.filter((n) => n.id !== id);
+        console.log(`Notifikasi dengan ID ${id} berhasil dihapus.`);
+      } else {
+        console.error("Gagal menghapus notifikasi:", response.status);
       }
     } catch (error) {
-      console.error('Error saat menyinkronkan task ke backend:', error);
+      console.error("Error saat menghapus notifikasi:", error);
     }
   };
-  
 
-  watch(notifications, (newNotifications) => {
-    localStorage.setItem('notifications', JSON.stringify(newNotifications));
-    console.log('Notifikasi disimpan ke localStorage:', newNotifications);
-  }, { deep: true });
+  // Simpan notifikasi ke localStorage setiap ada perubahan
+  watch(
+    notifications,
+    (newNotifications) => {
+      localStorage.setItem("notifications", JSON.stringify(newNotifications));
+      console.log("Notifikasi disimpan ke localStorage:", newNotifications);
+    },
+    { deep: true }
+  );
 
   return {
     notifications,
     addNotification,
     updateNotification,
     removeNotification,
-    syncTaskToBackend,
   };
 });

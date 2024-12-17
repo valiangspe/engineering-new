@@ -913,12 +913,27 @@ const alertx = (content) => {
             </div>
 
             <div>
-              <v-autocomplete
-  :items="jobs?.jobs?.map((j) => ({ label: j.name, value: j.id })) || []"
-  v-model="form.extJobId"
-  :item-title="(item) => item.label"
-  :return-object="false"
-></v-autocomplete>
+               <!-- {{JSON.stringify(form)}} -->
+               <v-autocomplete
+                :items="jobs?.jobs?.map((j) => ({ label: j?.name, value: j }))"
+                :item-title="(j) => j?.label"
+                :modelValue="
+                  jobs?.jobs?.find(
+                    (t) =>
+                      `${t?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
+                  )
+                "
+                @update:modelValue="
+                  (a) => {
+                    form.extJobId = isNaN(
+                      parseInt(a?.masterJavaBaseModel?.id ?? '')
+                    )
+                      ? 0
+                      : parseInt(a?.masterJavaBaseModel?.id ?? '');
+                  }
+                "
+              ></v-autocomplete>
+              <!-- {{ form?.extJobId }} -->
 
             </div>
 
@@ -927,18 +942,43 @@ const alertx = (content) => {
             </div>
 
             <div>
+              <!-- {{JSON.stringify(form)}} -->
               <v-autocomplete
-  :items="
-    jobs?.jobs
-      ?.find((j) => j.id === form.extJobId)
-      ?.panelCodes?.map((p) => ({
-        label: `${p.type} - ${p.name}`,
-        value: p.id,
-      })) || []
-  "
-  v-model="form.extPanelCodeId"
-  :item-title="(item) => item.label"
-></v-autocomplete>
+                :items="
+                  jobs?.jobs
+                    ?.find(
+                      (j) =>
+                        `${j?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
+                    )
+                    ?.panelCodes?.map((j) => ({
+                      label: `${j?.type} - ${j?.name}`,
+                      value: j,
+                    }))
+                "
+                :item-title="(j) => j?.label"
+                :modelValue="
+                  jobs?.jobs
+                    ?.find(
+                      (j) =>
+                        `${j?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
+                    )
+                    ?.panelCodes?.find(
+                      (t) =>
+                        `${t?.masterJavaBaseModel?.id}` ===
+                        `${form?.extPanelCodeId}`
+                    )
+                "
+                @update:modelValue="
+                  (a) => {
+                    form.extPanelCodeId = isNaN(
+                      parseInt(a?.masterJavaBaseModel?.id ?? '')
+                    )
+                      ? 0
+                      : parseInt(a?.masterJavaBaseModel?.id ?? '');
+                  }
+                "
+              ></v-autocomplete>
+              <!-- {{ form?.extJobId }} -->
 
             </div>
 

@@ -14,8 +14,8 @@ using System.Text.Json.Serialization;
 
 
 var builder = WebApplication.CreateBuilder(args);
-var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
-
+// var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
+var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -445,20 +445,80 @@ app.MapPost("/api/deptconfigs", async (List<EngDeptConfig> deptConfig, AppDbCont
 // });
 
 // membuka task by id
-app.MapGet("/api/dashboard/tasks/{id}", async (AppDbContext db, int id) =>
+app.MapGet("/api/dashboard/activities/task/{taskId:int}", async (
+    AppDbContext db,
+    int taskId,
+    bool? withUserNames,
+    HttpContext httpContext) =>
 {
-    var task = await db.Tasks
-        .Include(t => t.EngineeringActivity) // Jika Anda ingin menyertakan data EngineeringActivity
-        .Include(t => t.InCharges) // Jika ingin menyertakan InCharges
-        .FirstOrDefaultAsync(t => t.Id == id);
+    // Query aktivitas yang terkait dengan Task ID tertentu
+    var activitiesQuery = db.EngineeringActivities
+        .Include(a => a.Tasks)
+        .ThenInclude(t => t.InCharges)
+        .Where(a => a.Tasks.Any(t => t.Id == taskId))
+        .AsQueryable();
 
-    if (task == null)
+    // Ambil data dari database
+    var activities = await activitiesQuery.ToListAsync();
+
+    // Konversi ke DTO
+    var filteredActivities = activities.Select(activity => new ActivityDto
     {
-        return Results.NotFound(new { message = $"Task dengan ID {id} tidak ditemukan." });
+        Id = activity.Id,
+        Description = activity.Description,
+        Type = activity.Type,
+        ExtInquiryId = activity.ExtInquiryId,
+        ExtPurchaseOrderId = activity.ExtPurchaseOrderId,
+        FromCache = activity.FromCache,
+        ToCache = activity.ToCache,
+        ExtJobId=activity.ExtJobId,
+        ExtPanelCodeId=activity.ExtPanelCodeId,
+        Tasks = activity.Tasks
+            .Where(t => t.Id == taskId && t.DeletedAt == null)
+            .Select(task => new TaskDto
+            {
+                Id = task.Id,
+                Description = task.Description,
+                From = task.From,
+                To = task.To,
+                Hours = task.Hours,
+                Remark = task.Remark,
+                CompletedDatePic = task.CompletedDatePic,
+                CompletedDateSpv = task.CompletedDateSpv,
+                CompletedDateManager = task.CompletedDateManager,
+                CompletedByPicId = task.CompletedByPicId,
+                CompletedBySpvId = task.CompletedBySpvId,
+                CompletedByManagerId = task.CompletedByManagerId,
+                InCharges = task.InCharges.Select(inCharge => new InChargeDto
+                {
+                    Id = inCharge.Id,
+                    ExtUserId = inCharge.ExtUserId,
+                    PicName = inCharge.PicName // PicName akan di-update di langkah berikut
+                }).ToList()
+            }).ToList()
+    }).ToList();
+
+    // Jika withUserNames == true, tambahkan nama pengguna ke setiap InCharge
+    if (withUserNames == true)
+    {
+        var users = await Fetcher.fetchUsersAsync();
+        foreach (var activity in filteredActivities)
+        {
+            foreach (var task in activity.Tasks)
+            {
+                foreach (var inCharge in task.InCharges)
+                {
+                    var foundUser = users.FirstOrDefault(u => u.Id == inCharge.ExtUserId);
+                    inCharge.PicName = foundUser?.Name ?? ""; // Tambahkan nama pengguna
+                }
+            }
+        }
     }
 
-    return Results.Ok(task);
+    // Return hasil dalam format JSON
+    return Results.Ok(filteredActivities);
 });
+
 // batas
 
 
@@ -1716,4 +1776,46 @@ public class Notification : BaseModel
     public string Role { get; set; } = string.Empty; // Role terkait notifikasi (PIC, SPV, Manager)
     public bool IsRead { get; set; } = false; // Status apakah notifikasi sudah dibaca
     public string Status { get; set; } = "OnGoing"; // Status notifikasi (OnGoing, Completed)
+}
+
+
+// dto tambahan 
+public class InChargeDto
+{
+    public int? Id { get; set; }
+    public int? ExtUserId { get; set; }
+    public string? PicName { get; set; }
+}
+
+public class TaskDto
+{
+    public int? Id { get; set; }
+    public string? Description { get; set; }
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public double? Hours { get; set; }
+    public string? Remark { get; set; }
+    public DateTime? CompletedDatePic { get; set; }
+    public DateTime? CompletedDateSpv { get; set; }
+    public DateTime? CompletedDateManager { get; set; }
+    public int? CompletedByPicId { get; set; }
+    public int? CompletedBySpvId { get; set; }
+    public int? CompletedByManagerId { get; set; }
+    public List<InChargeDto>? InCharges { get; set; }
+}
+
+public class ActivityDto
+{
+    public int? Id { get; set; }
+    public string? Description { get; set; }
+    public EngineeringActivityType Type { get; set; }
+    public int? ExtInquiryId { get; set; }
+    public int? ExtPurchaseOrderId { get; set; }
+    public DateTime? FromCache { get; set; }
+    public DateTime? ToCache { get; set; }
+    public List<TaskDto>? Tasks { get; set; }
+    public int? ExtJobId { get; set; }
+    
+    public int? ExtPanelCodeId { get; set; }
+
 }

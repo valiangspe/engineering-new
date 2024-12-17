@@ -81,8 +81,22 @@ const loadNotifications = async () => {
     );
     if (response.ok) {
       const data = await response.json();
-      notificationStore.notifications = data;
-      console.log("Notifikasi berhasil dimuat:", data);
+
+      // Update store dengan menghindari duplikat notifikasi
+      data.forEach((newNotification) => {
+        const index = notificationStore.notifications.findIndex(
+          (n) => n.taskId === newNotification.taskId
+        );
+        if (index !== -1) {
+          // Update notifikasi lama jika taskId sudah ada
+          notificationStore.notifications[index] = newNotification;
+        } else {
+          // Tambahkan notifikasi baru jika tidak ada di store
+          notificationStore.notifications.push(newNotification);
+        }
+      });
+
+      console.log("Notifikasi berhasil diperbarui:", notificationStore.notifications);
     } else {
       console.error("Gagal memuat notifikasi:", response.status);
     }
@@ -90,6 +104,7 @@ const loadNotifications = async () => {
     console.error("Error saat memuat notifikasi:", error);
   }
 };
+
 
 const deleteNotification = async (id) => {
   try {
@@ -123,9 +138,11 @@ const handleDone = async (notification) => {
     );
 
     if (response.ok) {
-      const updatedNotification = await response.json();
       console.log(`Notifikasi selesai untuk task ${notification.taskId}.`);
-      loadNotifications();
+      // Hapus notifikasi dari store lokal
+      notificationStore.notifications = notificationStore.notifications.filter(
+        (n) => n.id !== notification.id
+      );
     } else {
       console.error("Gagal menandai notifikasi sebagai selesai:", response.status);
     }
@@ -144,14 +161,15 @@ const goToActivity = (taskId) => {
 
 
 
-const filteredNotifications = computed(() =>
+const filteredNotifications = computed(() => 
   notifications.value
     .filter(
       (notification) =>
         notification.role === userRole.value || notification.role === null
     )
-    .reverse()
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) // Urutkan berdasarkan tanggal
 );
+
 
 onMounted(() => {
   loadNotifications();
