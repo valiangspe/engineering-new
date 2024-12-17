@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed , onMounted} from "vue";
+import { ref, computed ,watch , onMounted} from "vue";
 // import { ref } from "vue";
 import {
   fetchDepartments,
@@ -18,12 +18,32 @@ import { ctx } from "../main";  // Mengimpor ctx untuk mendapatkan role pengguna
 import { useNotificationStore } from "./notificationStore";
 import { v4 as uuidv4 } from 'uuid'; // Tambahkan UUID untuk id unik
 import { useRoute } from "vue-router";
-// import axios from 'axios';
-// import { useNotificationStore } from "@/stores/notificationStore";
+
+const activityTypes = ref(["PrePO", "PostPO", "Others"]); // Pilihan PO Type
+const inquiries = ref([]);
+const jobs = ref({ jobs: [] }); // Jika jobs memiliki struktur nested
+
+// State
+const dialog = ref(false);
+
+const route = useRoute();
+const taskId = route.query.taskId;
+// Watch perubahan pada taskId
+// watch(
+//   () => taskId,
+//   (newTaskId) => {
+//     if (newTaskId) {
+//       startupById(newTaskId); // Panggil fungsi untuk mengambil data berdasarkan taskId
+//     }
+//   },
+//   { immediate: true } // Jalankan langsung saat komponen di-mount
+// );
+
+
 const taskDialog = ref(false); // Mengontrol dialog
 const selectedTask = ref(null); // Menyimpan data task yang dipilih
 const notificationStore = useNotificationStore(); 
-// const route = useRoute();
+
 const fetchUsersData = async () => {
   try {
     const d = await fetchUsers();
@@ -43,10 +63,6 @@ const formatDate = (date) => {
     year: "numeric",
   });
 };
-
-
-
-// import { useRoute } from "vue-router";  // Menambahkan import useRoute
 
 // Metode untuk mengambil engineeringActivityId berdasarkan taskId
 const getEngineeringActivityIdByTaskId = (taskId) => {
@@ -100,51 +116,6 @@ onMounted(async () => {
   await fetchEngineeringActivitiesData();
 });
 
-
-
-onMounted(() => {
-  const taskId = route.query.taskId; // Ambil taskId dari query
-  if (taskId) {
-    loadTaskById(taskId); // Panggil fungsi untuk memuat task
-  }
-});
-
-async function openTaskById(taskId) {
-  try {
-    const response = await fetch(`/api/dashboard/tasks/${taskId}`); // Ganti dengan endpoint Anda
-    if (!response.ok) {
-      throw new Error("Gagal memuat task");
-    }
-
-    const taskData = await response.json();
-    console.log("Task data:", taskData);
-
-    // Simpan task yang dipilih ke dalam state untuk ditampilkan di tabel
-    selectedTask.value = taskData;
-
-    // Scroll atau fokus langsung ke bagian tabel jika diperlukan
-    document.getElementById("tasksTable").scrollIntoView({ behavior: "smooth" });
-  } catch (error) {
-    console.error("Error memuat task:", error);
-  }
-}
-
-
-
-// const openTaskById = (taskId) => {
-//   const foundActivity = activities.value.find(activity => 
-//     activity.tasks.some(task => task.id === taskId)
-//   );
-  
-//   if (foundActivity) {
-//     selectedActivity.value = foundActivity;
-//     dialog.value = true;
-//   } else {
-//     console.warn(`Task dengan ID ${taskId} tidak ditemukan.`);
-//   }
-// };
-
-
 // Fungsi untuk memuat data aktivitas
 const fetchEngineeringActivitiesData = async () => {
   const d = await fetchEngineeringActivities({
@@ -154,8 +125,6 @@ const fetchEngineeringActivitiesData = async () => {
   });
   activities.value = d;
 };
-
-
 
 const undoDone = async (task, role) => {
   try {
@@ -178,14 +147,9 @@ const undoDone = async (task, role) => {
   }
 };
 
-
-
-
-const route = useRoute(); // Menangkap route untuk query parameter
 const activities = ref([]);
 const users = ref([]);
 const departments = ref([]);
-const dialog = ref(false);
 const selectedActivity = ref(null);
 const woTemplates = ref(null);
 const pos = ref([]);
@@ -200,13 +164,50 @@ const defaultForm = {
 
 const form = ref({ ...defaultForm });
 
-// const users = ref([{ id: 1, name: "valian" }]);
-const activityTypes = ref(["PrePO", "PostPO", "Others"]);
-const inCharges = ref([{ name: "John" }, { name: "Doe" }]);
-const selectedInCharges = ref([]);
-const jobs = ref({});
+// Function untuk memuat data dari API
+const startupById = async (taskId) => {
+  if (taskId) {
+    try {
+      dialog.value = true;
+
+      // Lakukan fetch data dari API
+      const response = await fetch(`http://localhost:5172/api/dashboard/activities/task/${taskId}?withUserNames=true`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
+      }
+
+      // Parsing hasil JSON dari API
+      const fetched = await response.json();
+
+      // Assign elemen pertama (task) ke form
+      form.value = fetched[0]; // Pastikan mengambil elemen pertama
+      console.log("Form data:", form.value); // Debugging untuk memastikan data
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      dialog.value = true;
+    }
+  }
+};
+
+
+// Load data saat halaman di-mount
+onMounted(async () => {
+  if (taskId) {
+    await startupById(taskId);
+  }
+});
+
+// Watch perubahan pada taskId untuk menjaga dialog tetap terbuka
+watch(() => taskId, async (newTaskId) => {
+  if (newTaskId) {
+    await startupById(newTaskId);
+  }
+});
+
+
 const selectedFilterUser = ref(null);
-const inquiries = ref([]);
+
 
 const loadNotifications = async () => {
   if (!userRole.value) {
@@ -257,11 +258,6 @@ async function loadTaskById(taskId) {
     console.error("Error loading task:", error);
   }
 }
-
-
-// onMounted(() => {
-//   loadNotifications();
-// });
 
 
 const requiredRule = [(v) => !!v || "Required."];
@@ -814,8 +810,9 @@ const alertx = (content) => {
   </div>
 
   <!-- WO dialog -->
+  <keep-alive>
   <div class="text-center pa-4">
-    <v-dialog v-model="dialog" fullscreen>
+    <v-dialog :key="taskId" v-model="dialog" fullscreen>
       <v-card
         max-width="400"
         prepend-icon="mdi-run"
@@ -845,25 +842,20 @@ const alertx = (content) => {
             <input
               placeholder="Description..."
               class="form-control form-control-sm"
-              label="Description"
-              @blur="
-                (e) => {
-                  form.description = e.target.value;
-                }
-              "
+              v-model="form.description"
             />
             <strong>PO Type</strong>
 
             <v-autocomplete
-              :items="activityTypes.map((t) => ({ label: t, value: t }))"
-              :item-title="(t) => t?.label"
-              :modelValue="activityTypes.find((t) => t === form?.type)"
-              @update:modelValue="
-                (a) => {
-                  form.type = a;
-                }
-              "
-            ></v-autocomplete>
+  :items="activityTypes.map((t) => ({ label: t, value: t }))"
+  :item-title="(t) => t?.label"
+  :modelValue="form?.type"
+  @update:modelValue="
+    (a) => {
+      form.type = a;
+    }
+  "
+></v-autocomplete>
 
             <!-- <div>
   <strong>Panel Type</strong>
@@ -922,25 +914,12 @@ const alertx = (content) => {
 
             <div>
               <v-autocomplete
-                :items="jobs?.jobs?.map((j) => ({ label: j?.name, value: j }))"
-                :item-title="(j) => j?.label"
-                :modelValue="
-                  jobs?.jobs?.find(
-                    (t) =>
-                      `${t?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                  )
-                "
-                @update:modelValue="
-                  (a) => {
-                    form.extJobId = isNaN(
-                      parseInt(a?.masterJavaBaseModel?.id ?? '')
-                    )
-                      ? 0
-                      : parseInt(a?.masterJavaBaseModel?.id ?? '');
-                  }
-                "
-              ></v-autocomplete>
-              <!-- {{ form?.extJobId }} -->
+  :items="jobs?.jobs?.map((j) => ({ label: j.name, value: j.id })) || []"
+  v-model="form.extJobId"
+  :item-title="(item) => item.label"
+  :return-object="false"
+></v-autocomplete>
+
             </div>
 
             <div>
@@ -949,41 +928,18 @@ const alertx = (content) => {
 
             <div>
               <v-autocomplete
-                :items="
-                  jobs?.jobs
-                    ?.find(
-                      (j) =>
-                        `${j?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                    )
-                    ?.panelCodes?.map((j) => ({
-                      label: `${j?.type} - ${j?.name}`,
-                      value: j,
-                    }))
-                "
-                :item-title="(j) => j?.label"
-                :modelValue="
-                  jobs?.jobs
-                    ?.find(
-                      (j) =>
-                        `${j?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                    )
-                    ?.panelCodes?.find(
-                      (t) =>
-                        `${t?.masterJavaBaseModel?.id}` ===
-                        `${form?.extPanelCodeId}`
-                    )
-                "
-                @update:modelValue="
-                  (a) => {
-                    form.extPanelCodeId = isNaN(
-                      parseInt(a?.masterJavaBaseModel?.id ?? '')
-                    )
-                      ? 0
-                      : parseInt(a?.masterJavaBaseModel?.id ?? '');
-                  }
-                "
-              ></v-autocomplete>
-              <!-- {{ form?.extJobId }} -->
+  :items="
+    jobs?.jobs
+      ?.find((j) => j.id === form.extJobId)
+      ?.panelCodes?.map((p) => ({
+        label: `${p.type} - ${p.name}`,
+        value: p.id,
+      })) || []
+  "
+  v-model="form.extPanelCodeId"
+  :item-title="(item) => item.label"
+></v-autocomplete>
+
             </div>
 
             <div>
@@ -1493,37 +1449,5 @@ const alertx = (content) => {
       </v-card>
     </v-dialog>
   </div>
-
-
-  <!-- dialog by task id  -->
-
-  <v-dialog v-model="taskDialog" fullscreen>
-  <v-card max-width="400">
-    <v-card-title class="text-h5">Task Details</v-card-title>
-    <v-card-text>
-      <div v-if="selectedTask">
-        <strong>Description:</strong> {{ selectedTask.description }} <br />
-        <strong>From:</strong> {{ selectedTask.from }} <br />
-        <strong>To:</strong> {{ selectedTask.to }} <br />
-        <strong>Hours:</strong> {{ selectedTask.hours }} <br />
-        <strong>PIC:</strong>
-        <ul>
-          <li v-for="pic in selectedTask.inCharges" :key="pic.id">
-            {{ pic.name }}
-          </li>
-        </ul>
-        <strong>Remarks:</strong> {{ selectedTask.remark }}
-      </div>
-      <div v-else>
-        <p>Loading task details...</p>
-      </div>
-    </v-card-text>
-    <v-card-actions>
-      <v-btn color="primary" text @click="taskDialog = false">Close</v-btn>
-    </v-card-actions>
-  </v-card>
-</v-dialog>
-
-
-
+</keep-alive>
 </template>

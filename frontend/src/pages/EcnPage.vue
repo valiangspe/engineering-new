@@ -76,7 +76,7 @@ const exportToExcel = async () => {
     try {
       const response = await axios.get(
         // `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
-         `http://localhost:5172/engineeringDetailProblems/${e.id}`
+         `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
       );
       const detailData = response.data;
 

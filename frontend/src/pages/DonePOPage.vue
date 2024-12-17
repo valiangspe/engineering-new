@@ -140,10 +140,12 @@ const dateRange = computed(() => {
 
 const headers = ref([
   { title: "Job Category", value: "jobCategory" },
-  { title: "Detail", value: "detail" },
-  { title: "Done", value: "done" },
+  { title: "Done PIC", value: "donePic" },
+  { title: "Done SPV", value: "doneSpv" },
+  { title: "Done Manager", value: "doneManager" },
   { title: "T. Prcs (H)", value: "tProcess" },
 ]);
+
 
 const items = ref([]);
 
@@ -181,13 +183,24 @@ const chartData = computed(() => {
     labels: items.value.map((item) => item.jobCategory),
     datasets: [
       {
-        label: "Done",
-        backgroundColor: "#f87979",
-        data: items.value.map((item) => item.done),
+        label: "Done PIC",
+        backgroundColor: "#42A5F5",
+        data: items.value.map((item) => item.donePic),
+      },
+      {
+        label: "Done SPV",
+        backgroundColor: "#66BB6A",
+        data: items.value.map((item) => item.doneSpv),
+      },
+      {
+        label: "Done Manager",
+        backgroundColor: "#FFA726",
+        data: items.value.map((item) => item.doneManager),
       },
     ],
   };
 });
+
 
 const activities = ref([]);
 
@@ -199,30 +212,37 @@ const updateChartData = () => {
 const fetchEngineeringActivitiesData = async () => {
   const d = await fetchEngineeringActivities({
     from: new Date(`${dateRange.value.from}T00:00:00`).toISOString(),
-    to: new Date(`${dateRange.value.to}T23:59:39`).toISOString(),
+    to: new Date(`${dateRange.value.to}T23:59:59`).toISOString(),
   });
+
   activities.value = d;
 
-  items.value = jobCategories.map((c) => {
-    const activitiesGot = d?.filter(
-      (a) => a?.type === c && !a?.tasks.find((t) => !t?.completedDate)
-    );
+  items.value = jobCategories.map((category) => {
+    const filteredActivities = d.filter((a) => a?.type === category);
 
     return {
-      jobCategory: c,
-      detail: "Done",
-      done: activitiesGot?.length,
-      tProcess: activitiesGot.reduce(
+      jobCategory: category,
+      donePic: filteredActivities.filter((a) =>
+        a.tasks.every((t) => t.completedDatePic)
+      ).length,
+      doneSpv: filteredActivities.filter((a) =>
+        a.tasks.every((t) => t.completedDateSpv)
+      ).length,
+      doneManager: filteredActivities.filter((a) =>
+        a.tasks.every((t) => t.completedDateManager)
+      ).length,
+      tProcess: filteredActivities.reduce(
         (acc, a) =>
           acc +
-          a?.tasks
-            ?.filter((t) => !t?.deletedAt)
-            ?.reduce((acc, t) => acc + (t?.hours ?? 0), 0.0),
-        0.0
+          a.tasks
+            .filter((t) => !t.deletedAt)
+            .reduce((sum, t) => sum + (t.hours || 0), 0),
+        0
       ),
     };
   });
 };
+
 
 fetchEngineeringActivitiesData();
 </script>
