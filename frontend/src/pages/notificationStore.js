@@ -11,27 +11,18 @@ export const useNotificationStore = defineStore('notificationStore', () => {
   }
 
   // Fungsi untuk menambahkan notifikasi baru (mencegah duplikat berdasarkan taskId dan role)
-  const addNotification = async (task, role = "pic") => {
+  const addNotification = async (task, role = "pic", previousRole = null) => {
     try {
-      // Cek duplikat berdasarkan taskId dan role
-      const existingNotification = notifications.value.find(
-        (n) => n.taskId === task.id && n.role === role
-      );
-
-      if (existingNotification) {
-        console.log(`Notifikasi untuk task ID ${task.id} dan role ${role} sudah ada.`);
-        return; // Hentikan jika notifikasi sudah ada
-      }
-
       const newNotification = {
-        title: `Task Baru: ${task.description}`,
-        message: `Task dengan ID ${task.id} perlu dilakukan done.`,
-        createdAt: new Date().toISOString(),
+        title: `Task Update: ${task.description}`,
+        message: `Task dengan ID ${task.id} siap untuk dilakukan done oleh ${role.toUpperCase()}.`,
         taskId: task.id,
         role,
+        previousRole, // Tambahkan role sebelumnya
+        createdAt: new Date().toISOString(),
       };
-
-      // Kirim notifikasi ke backend
+  
+      // Simpan ke backend
       const response = await fetch(
         `${import.meta.env.VITE_APP_BASE_URL}/api/notifications`,
         {
@@ -40,18 +31,15 @@ export const useNotificationStore = defineStore('notificationStore', () => {
           body: JSON.stringify(newNotification),
         }
       );
-
+  
       if (response.ok) {
-        const savedNotification = await response.json();
-        notifications.value.push(savedNotification); // Tambahkan ke store
-        console.log("Notifikasi baru berhasil ditambahkan:", savedNotification);
-      } else {
-        console.error("Gagal menambahkan notifikasi baru:", response.status);
+        notifications.value.push(await response.json());
       }
     } catch (error) {
       console.error("Error saat menambahkan notifikasi baru:", error);
     }
   };
+  
 
   // Fungsi untuk memperbarui notifikasi (jika sudah ada)
   const updateNotification = async (task, nextRole = null) => {

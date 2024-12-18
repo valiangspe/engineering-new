@@ -225,6 +225,10 @@ const headers = ref([
   { title: "Product", value: "product" },
   { title: "PIC", value: "type" },
 
+  { title: "Done PIC", value: "donePic" },
+  // { title: "Done SPV", value: "doneSpv" },
+  // { title: "Done Manager", value: "doneManager" },
+
   { title: "Days (Deadline)", value: "daysDeadline" },
   { title: "Tasks", value: "tasks" },
 ]);
@@ -271,31 +275,63 @@ const items = computed(() => {
         (t) => `${t?.id}` === `${a?.extInquiryId}`
       );
 
+      // Format tanggal done
+      const formatDoneDate = (date) =>
+        date
+          ? new Date(date).toLocaleDateString("id-ID", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })
+          : "-";
+
+      // Ambil tanggal Done PIC, SPV, dan Manager
+      const donePic = a?.tasks?.find((t) => t.completedDatePic)?.completedDatePic;
+      const doneSpv = a?.tasks?.find((t) => t.completedDateSpv)?.completedDateSpv;
+      const doneManager = a?.tasks?.find((t) => t.completedDateManager)
+        ?.completedDateManager;
+
       const data = {
         po: foundPO?.purchaseOrderNumber,
         customer: foundPO?.account?.name ?? foundInq?.customer?.name ?? "",
         inquiry: (() => {
           return foundInq ? `${foundInq?.inquiryNumber}` : "";
         })(),
-        doneOuts: !a?.tasks.find((t) => !t?.completedDate)
-          ? "Done"
-          : `Outs (${a?.tasks?.filter((t) => t?.completedDate)?.length}/${
-              a?.tasks?.length
-            })`,
+        doneOuts: (() => {
+          const totalTasks = a?.tasks?.length || 0; // Total task
+          const doneTasks = a?.tasks?.filter((t) =>
+            t?.completedDatePic || t?.completedDateSpv || t?.completedDateManager
+          )?.length || 0; // Task yang selesai (PIC, SPV, atau Manager)
+
+          return totalTasks === doneTasks && totalTasks > 0
+            ? "Done" // Jika semua task selesai
+            : `Outs (${doneTasks}/${totalTasks})`; // Jika belum selesai
+        })(),
         project: foundJob?.name,
         product: foundPanelCode
           ? `${foundPanelCode?.type}: ${foundPanelCode?.name}`
           : "",
         type: foundUsers,
-        daysDeadline: a?.toCache
-          ? Math.round(
-              (new Date(a.toCache).getTime() - new Date().getTime()) / 86400000
-            )
-          : "",
+        daysDeadline: (() => {
+          if (a?.toCache) {
+            const deadlineDate = new Date(a.toCache);
+            const remainingDays = Math.round(
+              (deadlineDate.getTime() - new Date().getTime()) / 86400000
+            );
+            return `${deadlineDate.toLocaleDateString("id-ID", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })} (${remainingDays} hari)`;
+          }
+          return "";
+        })(),
+        donePic: formatDoneDate(donePic),
+        doneSpv: formatDoneDate(doneSpv),
+        doneManager: formatDoneDate(doneManager),
         tasks: a?.tasks?.length,
       };
 
-      // console.log(u?.name, foundActivities);
       return {
         ...data,
       };
