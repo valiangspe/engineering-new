@@ -1,6 +1,15 @@
 <template>
   <v-container>
     <div>
+      <v-row>
+        <v-col class="d-flex justify-end mb-2">
+          <v-btn color="primary" @click="exportToExcel">
+            <v-icon left>mdi-download</v-icon>
+            Export to Excel
+          </v-btn>
+        </v-col>
+      </v-row>
+
       <div class="d-flex align-items-end">
         <div class="me-2">
           <div>Month</div>
@@ -102,6 +111,7 @@
 </template>
 
 <script setup>
+import ExcelJS from "exceljs";
 import { ref, computed } from "vue";
 import {
   fetchDepartments,
@@ -111,6 +121,46 @@ import {
   fetchJobsProtoSimple,
   fetchUsers,
 } from "./fetchers";
+
+
+const exportToExcel = async () => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Report");
+
+  // Tambahkan header
+  worksheet.columns = [
+    { header: "Customer", key: "customer" },
+    { header: "PO", key: "po" },
+    { header: "Inquiry", key: "inquiry" },
+    { header: "Done/Outs", key: "doneOuts" },
+    { header: "Project", key: "project" },
+    { header: "Product", key: "product" },
+    { header: "PIC", key: "type" },
+    { header: "Done PIC", key: "donePic" },
+    { header: "Done SPV", key: "doneSpv" },
+    { header: "Done Manager", key: "doneManager" },
+    { header: "Days (Deadline)", key: "daysDeadline" },
+    { header: "Tasks", key: "tasks" },
+  ];
+
+  // Tambahkan data
+  items.value.forEach((item) => {
+    worksheet.addRow(item);
+  });
+
+  // Simpan file
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `report_activity_${new Date().toISOString()}.xlsx`;
+  link.click();
+};
+
+
 
 const users = ref([]);
 const departments = ref([]);
