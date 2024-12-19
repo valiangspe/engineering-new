@@ -226,8 +226,8 @@ const headers = ref([
   { title: "PIC", value: "type" },
 
   { title: "Done PIC", value: "donePic" },
-  // { title: "Done SPV", value: "doneSpv" },
-  // { title: "Done Manager", value: "doneManager" },
+  { title: "Done SPV", value: "doneSpv" },
+  { title: "Done Manager", value: "doneManager" },
 
   { title: "Days (Deadline)", value: "daysDeadline" },
   { title: "Tasks", value: "tasks" },
