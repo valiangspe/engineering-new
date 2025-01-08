@@ -98,7 +98,7 @@
     <v-row>
       <v-col>
         <v-card>
-          <v-card-title class="headline">Done</v-card-title>
+          <v-card-title class="headline">{{ cardTitle }}</v-card-title>
           <v-card-text>
             <v-data-table :headers="headers" :items="items" class="elevation-1">
               <template v-slot:footer> </template>
@@ -283,49 +283,71 @@ const headers = ref([
   { title: "Tasks", value: "tasks" },
 ]);
 
+const cardTitle = computed(() => {
+  if (isCompleted.value === true) {
+    return "Done";
+  } else if (isCompleted.value === false) {
+    return "Outs";
+  }
+  return "All Activities";
+});
+// const cardtype = computed (() =>{
+// if ()
+// });
 const items = computed(() => {
   return activities.value
-    ?.filter(
-      (a) =>
-        (selectedActivityType.value
-          ? `${a?.type}` === `${selectedActivityType.value}`
-          : true) &&
-        (isCompleted.value !== null
-          ? isCompleted.value === true
-            ? !a?.tasks?.find((a) => !a?.completedDate)
-            : a?.tasks?.find((a) => !a?.completedDate)
-          : true) &&
-        (a?.type === "PostPO" ? a?.extPurchaseOrderId : true) &&
-        (a?.type === "PrePO" ? a?.extInquiryId : true)
-    )
-    .map((a) => {
+    ?.map((activity) => {
+      const allTasks = activity?.tasks || [];
+      const allTasksCompleted = allTasks.every((task) => task?.completedDate);
+      const hasIncompleteTasks = allTasks.some((task) => !task?.completedDate);
+
+      const totalTasks = activity?.tasks?.length || 0;
+      const doneTasks =
+        activity?.tasks?.filter(
+          (task) =>
+            task?.completedDatePic ||
+            task?.completedDateSpv ||
+            task?.completedDateManager
+        )?.length || 0;
+
+      const doneOuts =
+        totalTasks === doneTasks && totalTasks > 0
+          ? "Done" // Semua selesai
+          : `Outs (${doneTasks}/${totalTasks})`; // Sebagian selesai
+
+      const type = activity.type; // Ambil langsung dari activity.type
+
       const foundPO = pos.value.find(
-        (p) => `${p?.id}` === `${a?.extPurchaseOrderId}`
+        (po) => `${po?.id}` === `${activity?.extPurchaseOrderId}`
       );
 
       const foundJob = jobs.value.jobs?.find(
-        (j) => `${j?.masterJavaBaseModel?.id}` === `${a?.extJobId}`
+        (job) =>
+          `${job?.masterJavaBaseModel?.id}` === `${activity?.extJobId}`
       );
 
       const foundPanelCode = jobs.value.jobs
-        ?.flatMap((j) => j?.panelCodes)
+        ?.flatMap((job) => job?.panelCodes)
         .find(
-          (c) => `${c?.masterJavaBaseModel?.id}` === `${a?.extPanelCodeId}`
+          (panelCode) =>
+            `${panelCode?.masterJavaBaseModel?.id}` ===
+            `${activity?.extPanelCodeId}`
         );
 
       const foundUsers = [
         ...new Set(
-          a?.tasks?.flatMap((t) => t?.inCharges.map((c) => c.extUserId))
+          activity?.tasks?.flatMap((task) =>
+            task?.inCharges.map((charge) => charge.extUserId)
+          )
         ),
       ]
-        .map((id) => users.value?.find((u) => `${u?.id}` === `${id}`)?.name)
+        .map((id) => users.value?.find((user) => `${user?.id}` === `${id}`)?.name)
         .join(", ");
 
-      const foundInq = inquiries?.value?.find(
-        (t) => `${t?.id}` === `${a?.extInquiryId}`
+      const foundInquiry = inquiries?.value?.find(
+        (inquiry) => `${inquiry?.id}` === `${activity?.extInquiryId}`
       );
 
-      // Format tanggal done
       const formatDoneDate = (date) =>
         date
           ? new Date(date).toLocaleDateString("id-ID", {
@@ -335,36 +357,30 @@ const items = computed(() => {
             })
           : "-";
 
-      // Ambil tanggal Done PIC, SPV, dan Manager
-      const donePic = a?.tasks?.find((t) => t.completedDatePic)?.completedDatePic;
-      const doneSpv = a?.tasks?.find((t) => t.completedDateSpv)?.completedDateSpv;
-      const doneManager = a?.tasks?.find((t) => t.completedDateManager)
-        ?.completedDateManager;
+      const donePic = activity?.tasks?.find(
+        (task) => task.completedDatePic
+      )?.completedDatePic;
+      const doneSpv = activity?.tasks?.find(
+        (task) => task.completedDateSpv
+      )?.completedDateSpv;
+      const doneManager = activity?.tasks?.find(
+        (task) => task.completedDateManager
+      )?.completedDateManager;
 
-      const data = {
+      return {
         po: foundPO?.purchaseOrderNumber,
-        customer: foundPO?.account?.name ?? foundInq?.customer?.name ?? "",
-        inquiry: (() => {
-          return foundInq ? `${foundInq?.inquiryNumber}` : "";
-        })(),
-        doneOuts: (() => {
-          const totalTasks = a?.tasks?.length || 0; // Total task
-          const doneTasks = a?.tasks?.filter((t) =>
-            t?.completedDatePic || t?.completedDateSpv || t?.completedDateManager
-          )?.length || 0; // Task yang selesai (PIC, SPV, atau Manager)
-
-          return totalTasks === doneTasks && totalTasks > 0
-            ? "Done" // Jika semua task selesai
-            : `Outs (${doneTasks}/${totalTasks})`; // Jika belum selesai
-        })(),
+        customer:
+          foundPO?.account?.name ?? foundInquiry?.customer?.name ?? "",
+        inquiry: foundInquiry ? `${foundInquiry?.inquiryNumber}` : "",
+        doneOuts, // Tambahkan Done/Outs ke item
         project: foundJob?.name,
         product: foundPanelCode
           ? `${foundPanelCode?.type}: ${foundPanelCode?.name}`
           : "",
-        type: foundUsers,
+        type, // Tambahkan type ke item
         daysDeadline: (() => {
-          if (a?.toCache) {
-            const deadlineDate = new Date(a.toCache);
+          if (activity?.toCache) {
+            const deadlineDate = new Date(activity.toCache);
             const remainingDays = Math.round(
               (deadlineDate.getTime() - new Date().getTime()) / 86400000
             );
@@ -379,14 +395,32 @@ const items = computed(() => {
         donePic: formatDoneDate(donePic),
         doneSpv: formatDoneDate(doneSpv),
         doneManager: formatDoneDate(doneManager),
-        tasks: a?.tasks?.length,
+        tasks: activity?.tasks?.length,
       };
+    })
+    ?.filter((item) => {
+      // Filter berdasarkan status Done/Outs
+      if (isCompleted.value !== null) {
+        if (isCompleted.value === true && item.doneOuts !== "Done") {
+          return false;
+        }
+        if (isCompleted.value === false && item.doneOuts === "Done") {
+          return false;
+        }
+      }
 
-      return {
-        ...data,
-      };
+      // Filter berdasarkan type
+      if (
+        selectedActivityType.value &&
+        item.type !== selectedActivityType.value
+      ) {
+        return false;
+      }
+
+      return true;
     });
 });
+
 </script>
 
 <style>
