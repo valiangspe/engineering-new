@@ -1,5 +1,6 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
+
 import ExcelJS from "exceljs";
 import {
   fetchEngineeringDetailProblems,
@@ -7,185 +8,312 @@ import {
   fetchItems,
   fetchJobsProtoSimple,
 } from "./fetchers";
-import axios from 'axios';
+import axios from "axios";
+import { debounce } from "lodash";
 
+onMounted(() => {
+  fetchUsers(); // Pastikan dipanggil di lifecycle awal
+  // await fetchAllData(); // Load semua data termasuk pengguna
+});
+// Deklarasi variabel utama
+const poSearch = ref("");
+const poSearchDebounced = ref("");
 const ecns = ref([]);
 const pos = ref([]);
 const jobs = ref([]);
 const items = ref([]);
+const ecnCcnFilter = ref(null); // null, 'ECN', atau 'CCN'
+const loading = ref(true);
 
+// Debounce untuk pencarian PO
+watch(
+  poSearch,
+  debounce((value) => {
+    poSearchDebounced.value = value.trim();
+  }, 300)
+);
+
+// Pemetaan PO untuk efisiensi pencarian
+const posMap = computed(() => {
+  const map = new Map();
+  pos.value.forEach((p) => {
+    map.set(`${p?.id}`, p);
+  });
+  return map;
+});
+const users = ref([]); // Harus diinisialisasi sebagai array
+
+const getUsernameById = (id) => {
+  if (!Array.isArray(users.value) || users.value.length === 0) {
+    return "Unknown";
+  }
+  const user = users.value.find((u) => `${u?.id}` === `${id}`);
+  return user ? user.name : "Unknown";
+};
+
+
+const fetchUsers = async () => {
+  try {
+    const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/users`);
+    users.value = Array.isArray(response.data) ? response.data : []; // Validasi jika bukan array
+  } catch (error) {
+    console.error("Failed to fetch users:", error);
+    users.value = []; // Set ke array kosong jika ada kesalahan
+    console.log("Fetched users:", users.value);
+  }
+};
+
+
+// Filter data ECN/CCN
+const filteredEcns = computed(() => {
+  return ecns.value.filter((e) => {
+    const matchesEcnCcn =
+      ecnCcnFilter.value === null ||
+      (ecnCcnFilter.value === "ECN" && e.typeEcnCcn === 0) ||
+      (ecnCcnFilter.value === "CCN" && e.typeEcnCcn === 1);
+
+    const foundPO = posMap.value.get(`${e?.extPurchaseOrderId}`);
+    const matchesPo =
+      !poSearchDebounced.value ||
+      (foundPO?.purchaseOrderNumber || "")
+        .toLowerCase()
+        .includes(poSearchDebounced.value.toLowerCase());
+
+    return matchesEcnCcn && matchesPo;
+  });
+});
+
+// Fungsi untuk ekspor ke Excel
+const exportToExcel = async () => {
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("ECN Report");
+
+    // Header kolom
+    worksheet.columns = [
+      { header: "No", key: "no", width: 5 },
+      { header: "ID", key: "id", width: 10 },
+      { header: "Date", key: "date", width: 15 },
+      { header: "Requested By", key: "requestedBy", width: 20 }, // Tambahkan kolom
+      { header: "PO Number", key: "po_number", width: 20 },
+      { header: "Project Name", key: "project_name", width: 25 },
+      { header: "ECN/CCN", key: "ecn_ccn", width: 10 },
+      { header: "Description", key: "description", width: 30 },
+      { header: "Cost", key: "cost", width: 15 },
+      { header: "Increase", key: "increase", width: 15 },
+      { header: "Decrease", key: "decrease", width: 15 },
+      { header: "Created", key: "created", width: 20 },
+      { header: "Updated", key: "updated", width: 20 },
+    ];
+
+    // Tambahkan data ECN
+    filteredEcns.value.forEach((ecn, index) => {
+      const foundPO = posMap.value.get(`${ecn?.extPurchaseOrderId}`);
+      const projectName = foundPO
+        ? `${foundPO.purchaseOrderNumber} (${foundPO?.account?.name || ""})`
+        : "Unknown Project";
+
+      const cost = ecn?.items.reduce(
+        (total, item) => total + (item?.snapshotPrice || 0) * (item?.qty || 0),
+        0
+      );
+      const increase = ecn?.items
+        .filter((item) => item?.typeIncreaseDecrease === 0)
+        .reduce(
+          (total, item) => total + (item?.snapshotPrice || 0) * (item?.qty || 0),
+          0
+        );
+      const decrease = ecn?.items
+        .filter((item) => item?.typeIncreaseDecrease === 1)
+        .reduce(
+          (total, item) => total + (item?.snapshotPrice || 0) * (item?.qty || 0),
+          0
+        );
+
+      worksheet.addRow({
+        no: index + 1,
+        id: ecn?.id,
+        date: ecn?.tgl
+          ? new Date(ecn?.tgl).toLocaleDateString("en-US")
+          : "N/A",
+        requestedBy: getUsernameById(ecn.extUserId), // Tambahkan username
+        po_number: foundPO?.purchaseOrderNumber || "Unknown PO",
+        project_name: projectName,
+        ecn_ccn: ecn?.typeEcnCcn === 0 ? "ECN" : "CCN",
+        description: ecn?.detailProblem || "No Description",
+        cost: cost || 0,
+        increase: increase || 0,
+        decrease: decrease || 0,
+        created: ecn?.createdAt
+          ? new Date(ecn?.createdAt).toLocaleString("en-US")
+          : "N/A",
+        updated: ecn?.updatedAt
+          ? new Date(ecn?.updatedAt).toLocaleString("en-US")
+          : "N/A",
+      });
+    });
+
+    // Buat file Excel dan unduh
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ECN_Report.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Failed to export Excel:", error);
+  }
+};
+
+// Fetch data utama
+const fetchAllData = async () => {
+  loading.value = true;
+  try {
+    await Promise.all([
+      fetchEngineeringDetailProblemsData(),
+      fetchPosData(),
+      fetchJobsData(),
+      fetchWarehouseItemsData(),
+    ]);
+  } catch (error) {
+    console.error("Failed to fetch all data:", error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Fetch individual data functions
 const fetchEngineeringDetailProblemsData = async () => {
-  const d = await fetchEngineeringDetailProblems();
+  try {
+    const response = await axios.get(
+      "http://localhost:5172/engineeringDetailProblems/1"
+    );
+    const data = response.data;
+    if (data) {
+      ecns.value = Array.isArray(data) ? data : [data]; // Validasi jika respons berupa objek tunggal
+      // Fetch pengguna terkait berdasarkan extUserId
+      const userIds = [...new Set(ecns.value.map((ecn) => ecn.extUserId))];
+      await fetchUsersByIds(userIds); // Fetch hanya pengguna yang relevan
+    }
+  } catch (err) {
+    console.error("Failed to fetch ECN data:", err);
+  }
+};
+const fetchUsersByIds = async (userIds) => {
+  try {
+    const response = await axios.get(
+      `${import.meta.env.VITE_API_BASE_URL}/users`,
+      {
+        params: {
+          ids: userIds.join(","), // Kirim daftar ID sebagai parameter
+        },
+      }
+    );
+    users.value = Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    console.error("Failed to fetch users by IDs:", error);
+    users.value = [];
+  }
+};
 
-  if (d) {
-    ecns.value = d;
+const uniqueUsers = computed(() => {
+  const userMap = new Map();
+  ecns.value.forEach((ecn) => {
+    if (ecn.createdBy) {
+      const user = ecn.createdBy;
+      if (!userMap.has(user.id)) {
+        userMap.set(user.id, { ...user, ecnCount: 1 });
+      } else {
+        userMap.get(user.id).ecnCount += 1;
+      }
+    }
+  });
+  return Array.from(userMap.values());
+});
+
+const fetchPosData = async () => {
+  try {
+    const d = await fetchExtCrmPurchaseOrdersProtoSimple();
+    if (d) pos.value = d;
+  } catch (err) {
+    console.error("Failed to fetch PO data:", err);
   }
 };
 
 const fetchJobsData = async () => {
-  const d = await fetchJobsProtoSimple({ all: true });
-
-  if (d) {
-    jobs.value = d;
+  try {
+    const d = await fetchJobsProtoSimple({ all: true });
+    if (d) jobs.value = d;
+  } catch (err) {
+    console.error("Failed to fetch jobs data:", err);
   }
 };
 
 const fetchWarehouseItemsData = async () => {
-  const d = await fetchItems();
-
-  if (d) {
-    items.value = d;
+  try {
+    const d = await fetchItems();
+    if (d) items.value = d;
+  } catch (err) {
+    console.error("Failed to fetch warehouse items data:", err);
   }
 };
 
-// Fungsi untuk mengekspor ke Excel
-const exportToExcel = async () => {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('Report');
-
-  worksheet.columns = [
-    { header: 'No', key: 'no', width: 5 },
-    { header: 'ID', key: 'id', width: 10 },
-    { header: 'Date', key: 'date', width: 15 },
-    { header: 'PO Number', key: 'po_number', width: 20 },
-    { header: 'Customer Name', key: 'customer_name', width: 20 },
-    { header: 'Project Name', key: 'project_name', width: 25 },
-    { header: 'ECN/CCN', key: 'ecn_ccn', width: 10 },
-    { header: 'Description', key: 'description', width: 30 },
-    { header: 'Part Numbers', key: 'part_numbers', width: 30 },
-    { header: 'Part Number Count', key: 'part_number_count', width: 20 },
-    { header: 'Reduction/Cost (Rp)', key: 'reduction_cost', width: 15 },
-    { header: 'Increase (Rp)', key: 'increase', width: 15 },
-    { header: 'Decrease (Rp)', key: 'decrease', width: 15 },
-    { header: 'Remark', key: 'remark', width: 20 },
-  ];
-
-  for (let i = 0; i < ecns.value.length; i++) {
-    const e = ecns.value[i];
-
-    const foundPO = pos.value.find(
-      (p) => `${p?.id}` === `${e?.extPurchaseOrderId}`
-    );
-    const projectName = foundPO
-      ? `${foundPO.purchaseOrderNumber} (${foundPO?.account?.name || ''})`
-      : 'No Project Name';
-
-    // Ambil detail part number
-    let partNumbers = [];
-    let partNumbersWithQty = [];
-    try {
-      const response = await axios.get(
-        // `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
-         `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
-      );
-      const detailData = response.data;
-
-      // Proses items untuk mendapatkan part numbers dan qty
-      detailData?.items?.forEach((item) => {
-        const foundItem = items.value.find((ix) => ix.id === item?.extItemId);
-        if (foundItem) {
-          partNumbers.push(foundItem.partNum || `Unknown Part (${item?.extItemId})`);
-          partNumbersWithQty.push(
-            `${foundItem.partNum || 'Unknown Part'} (${item?.qty})`
-          );
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching part numbers:', error);
-    }
-
-    const partNumberCount = partNumbers.length;
-
-    const reductionCost = e?.items
-      ?.filter((i) => !i?.deletedAt)
-      ?.reduce((acc, i) => {
-        const value = (i?.snapshotPrice ?? 0) * (i?.qty ?? 0);
-
-        return i?.typeIncreaseDecrease !== 1 ? acc + value : acc - value;
-      }, 0);
-
-    const increase = e?.items
-      ?.filter((i) => !i?.deletedAt && i?.typeIncreaseDecrease !== 1)
-      ?.reduce((acc, i) => acc + (i?.snapshotPrice ?? 0) * (i?.qty ?? 0), 0);
-
-    const decrease = e?.items
-      ?.filter((i) => !i?.deletedAt && i?.typeIncreaseDecrease === 1)
-      ?.reduce((acc, i) => acc + (i?.snapshotPrice ?? 0) * (i?.qty ?? 0), 0);
-
-    worksheet.addRow({
-      no: i + 1,
-      id: e?.id || '',
-      date: e?.tgl
-        ? Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(
-            new Date(e?.tgl ?? '')
-          )
-        : '',
-      po_number: foundPO?.purchaseOrderNumber || '',
-      customer_name: foundPO?.account?.name || 'Unknown Customer',
-      project_name: projectName,
-      ecn_ccn: e?.typeEcnCcn === 0 ? 'ECN' : e?.typeEcnCcn === 1 ? 'CCN' : '',
-      description: e?.detailProblem || '',
-      part_numbers: partNumbers.join(', '),
-      part_number_count: partNumberCount,
-      reduction_cost: reductionCost || 0,
-      increase: increase || 0,
-      decrease: decrease || 0,
-      remark: e?.remark || '',
-    });
-
-    // Tambahkan data Part Number dan Qty di bawah setiap data
-    partNumbersWithQty.forEach((partNumberQty) => {
-      worksheet.addRow({
-        no: '',
-        part_numbers: partNumberQty,
-        part_number_count: '',
-      });
-    });
-  }
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'Engineering_Report.xlsx';
-  a.click();
-  window.URL.revokeObjectURL(url);
-};
-
-const fetchPosData = async () => {
-  const d = await fetchExtCrmPurchaseOrdersProtoSimple();
-
-  if (d) {
-    pos.value = d;
-  }
-};
-
-fetchEngineeringDetailProblemsData();
-fetchPosData();
-fetchJobsData();
-fetchWarehouseItemsData();
+// Panggil fetch data utama
+fetchAllData();
 </script>
+
 <template>
   <div class="m-3">
     <div class="d-flex">
       <h4>ECN</h4>
       <div>
-        <button @click="exportToExcel" class="btn btn-sm btn-success mx-2">
+        <button @click="exportToExcel" class="btn btn-success">
           Export to Excel
         </button>
       </div>
       <div>
         <a href="/#/ecn/add">
-          <button class="btn btn-sm btn-primary mx-2 px-1 py-0">Add</button>
+          <button class="btn btn-success bg-blue mx-3">Add</button>
         </a>
       </div>
     </div>
-    <div><hr /></div>
-    <div>
+  <div class="mb-3">
+    <div class="mb-3">
+      <div class="d-flex">
+        <!-- Filter ECN/CCN -->
+        <div class="me-3">
+          <label for="ecnCcnFilter" class="form-label">Filter ECN/CCN</label>
+          <select id="ecnCcnFilter" class="form-select" v-model="ecnCcnFilter">
+            <option :value="null">All</option>
+            <option value="ECN">ECN</option>
+            <option value="CCN">CCN</option>
+          </select>
+        </div>
+        <!-- Pencarian PO -->
+        <div>
+          <label for="poSearch" class="form-label">Search PO</label>
+          <input
+            id="poSearch"
+            type="text"
+            class="form-control"
+            v-model="poSearch"
+            placeholder="Search by PO Number"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div v-if="loading" class="text-center my-3">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+  <div v-else>
       <div
         class="overflow-auto border border-dark"
         style="height: 60vh; resize: vertical"
@@ -214,6 +342,7 @@ fetchWarehouseItemsData();
                   'Increase',
                   'Decrease',
                   'Created',
+                  'Request By',
                   'Updated',
                   'Action',
                   'Print',
@@ -226,7 +355,7 @@ fetchWarehouseItemsData();
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(e, i) in ecns">
+            <tr v-for="(e, i) in filteredEcns" :key="e.id || `ecn-${i}`">
               <template
                 v-for="d in [
                   {
@@ -351,6 +480,10 @@ fetchWarehouseItemsData();
                       : ""
                   }}
                 </td>
+
+                <td>{{ users.value.length ? getUsernameById(e.extUserId) : "Loading..." }}</td>
+
+
                 <td class="border border-dark">
                   {{
                     e?.updatedAt
@@ -404,7 +537,7 @@ fetchWarehouseItemsData();
                       : ""
                   }}
                 </td>
-                <td class="border border-dark">{{ d?.foundItem?.partNum }}</td>
+                <!-- <td class="border border-dark">{{ d?.foundItem?.partNum }}</td> -->
               </template>
             </tr>
           </tbody>
