@@ -321,161 +321,157 @@ const foundItem = computed(() => {
     <div class="border border-dark">
       <table class="table table-sm">
         <thead>
-
-      
-        <th
-          v-for="h in [
-            '#',
-            'MFR',
-            'PN',
-            'Part Name',
-            'Part Desc',
-            'Qty',
-            'Get Price',
-            'Snapshot price',
-            'Snapshot x qty',
-            'Last snapshot',
-            'Type',
-            'UM',
-            'Action',
-          ]"
-        >
-          {{ h }}
-        </th>
-      </thead>
-      <tbody>
-
-      
-        <tr v-for="(i, i_) in ecn?.items?.filter((i) => !i.deletedAt) ?? []">
-          <template
-            v-for="d in [
-              { foundItem: items.find((ix) => ix.id === i?.extItemId) },
+          <th
+            v-for="h in [
+              '#',
+              'MFR',
+              'PN',
+              'Part Name',
+              'Part Desc',
+              'Qty',
+              'Get Price',
+              'Snapshot price',
+              'Snapshot x qty',
+              'Last snapshot',
+              'Type',
+              'UM',
+              'Action',
             ]"
           >
-            <td class="border border-dark">{{ i_ + 1 }}</td>
-            <td class="border border-dark">{{ d?.foundItem?.mfr }}</td>
-            <td class="border border-dark">{{ d?.foundItem?.partNum }}</td>
-            <td class="border border-dark">{{ d?.foundItem?.partName }}</td>
-            <td class="border border-dark">{{ d?.foundItem?.partDesc }}</td>
-            <td class="border border-dark">
-              <input
-                type="number"
-                class="form-control form-control-sm"
-                style="width: 75px"
-                @blur="
-                  (e) => {
-                    if (!isNaN(parseFloat(e.target.value))) {
-                      i.qty = parseFloat(e.target.value);
-                    }
-                  }
-                "
-                :value="i?.qty"
-              />
-            </td>
-            <td class="border border-dark">
-              <button
-                class="btn btn-sm btn-primary px-1 py-0"
-                @click="
-                  () => {
-                    const foundInv = inventory.find(
-                      (ix) => `${ix?.products?.id}` === `${i?.extItemId}`
-                    );
-
-                    if (foundInv?.priceRp ?? 0 !== 0) {
-                      i.snapshotPrice = foundInv?.priceRp ?? 0;
-                      i.snapshotDate = new Date().toISOString();
-                    }
-                  }
-                "
-              >
-                Get
-              </button>
-            </td>
-            <td class="border border-dark">
-              <input
-                type="number"
-                class="form-control form-control-sm"
-                style="width: 100px"
-                @blur="
-                  (e) => {
-                    if (!isNaN(parseFloat(e.target.value))) {
-                      i.snapshotPrice = parseFloat(e.target.value);
-                    }
-                  }
-                "
-                :value="i?.snapshotPrice"
-              />
-            </td>
-            <td class="border border-dark">
-              {{
-                Intl.NumberFormat("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }).format((i?.snapshotPrice ?? 0) * (i?.qty ?? 0))
-              }}
-            </td>
-            <td class="border border-dark">
-              {{
-                i?.snapshotDate
-                  ? Intl.DateTimeFormat("en-US", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }).format(new Date(i?.snapshotDate))
-                  : ""
-              }}
-            </td>
-            <td class="border border-dark">
-              <div class="d-flex">
-                <button
-                  @click="
-                    () => {
-                      i.typeIncreaseDecrease = 0;
+            {{ h }}
+          </th>
+        </thead>
+        <tbody>
+          <tr v-for="(i, i_) in ecn?.items?.filter((i) => !i.deletedAt) ?? []">
+            <template
+              v-for="d in [
+                { foundItem: items.find((ix) => ix.id === i?.extItemId) },
+              ]"
+            >
+              <td class="border border-dark">{{ i_ + 1 }}</td>
+              <td class="border border-dark">{{ d?.foundItem?.mfr }}</td>
+              <td class="border border-dark">{{ d?.foundItem?.partNum }}</td>
+              <td class="border border-dark">{{ d?.foundItem?.partName }}</td>
+              <td class="border border-dark">{{ d?.foundItem?.partDesc }}</td>
+              <td class="border border-dark">
+                <input
+                  type="number"
+                  class="form-control form-control-sm"
+                  style="width: 75px"
+                  @blur="
+                    (e) => {
+                      if (!isNaN(parseFloat(e.target.value))) {
+                        i.qty = parseFloat(e.target.value);
+                      }
                     }
                   "
-                  :class="`px-1 py-0 btn btn-sm ${
-                    i?.typeIncreaseDecrease === 0 || !i?.typeIncreaseDecrease
-                      ? `btn-primary`
-                      : 'btn-outline-primary'
-                  }`"
-                >
-                  +
-                </button>
+                  :value="i?.qty"
+                />
+              </td>
+              <td class="border border-dark">
                 <button
+                  class="btn btn-sm btn-primary px-1 py-0"
                   @click="
                     () => {
-                      i.typeIncreaseDecrease = 1;
-                    }
-                  "
-                  :class="`px-1 py-0 btn btn-sm ${
-                    i?.typeIncreaseDecrease === 1
-                      ? `btn-primary`
-                      : 'btn-outline-primary'
-                  }`"
-                >
-                  -
-                </button>
-              </div>
-            </td>
+                      const foundInv = inventory.find(
+                        (ix) => `${ix?.products?.id}` === `${i?.extItemId}`
+                      );
 
-            <td class="border border-dark">{{ d?.foundItem?.defaultUm }}</td>
-
-            <td class="border border-dark">
-              <div>
-                <button
-                  class="btn btn-sm btn-danger"
-                  @click="
-                    () => {
-                      i.deletedAt = new Date().toISOString();
+                      if (foundInv?.priceRp ?? 0 !== 0) {
+                        i.snapshotPrice = foundInv?.priceRp ?? 0;
+                        i.snapshotDate = new Date().toISOString();
+                      }
                     }
                   "
                 >
-                  Delete
+                  Get
                 </button>
-              </div>
-            </td>
-          </template>
-        </tr>
-      </tbody>
+              </td>
+              <td class="border border-dark">
+                <input
+                  type="number"
+                  class="form-control form-control-sm"
+                  style="width: 100px"
+                  @blur="
+                    (e) => {
+                      if (!isNaN(parseFloat(e.target.value))) {
+                        i.snapshotPrice = parseFloat(e.target.value);
+                      }
+                    }
+                  "
+                  :value="i?.snapshotPrice"
+                />
+              </td>
+              <td class="border border-dark">
+                {{
+                  Intl.NumberFormat("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  }).format((i?.snapshotPrice ?? 0) * (i?.qty ?? 0))
+                }}
+              </td>
+              <td class="border border-dark">
+                {{
+                  i?.snapshotDate
+                    ? Intl.DateTimeFormat("en-US", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      }).format(new Date(i?.snapshotDate))
+                    : ""
+                }}
+              </td>
+              <td class="border border-dark">
+                <div class="d-flex">
+                  <button
+                    @click="
+                      () => {
+                        i.typeIncreaseDecrease = 0;
+                      }
+                    "
+                    :class="`px-1 py-0 btn btn-sm ${
+                      i?.typeIncreaseDecrease === 0 || !i?.typeIncreaseDecrease
+                        ? `btn-primary`
+                        : 'btn-outline-primary'
+                    }`"
+                  >
+                    +
+                  </button>
+                  <button
+                    @click="
+                      () => {
+                        i.typeIncreaseDecrease = 1;
+                      }
+                    "
+                    :class="`px-1 py-0 btn btn-sm ${
+                      i?.typeIncreaseDecrease === 1
+                        ? `btn-primary`
+                        : 'btn-outline-primary'
+                    }`"
+                  >
+                    -
+                  </button>
+                </div>
+              </td>
+
+              <td class="border border-dark">{{ d?.foundItem?.defaultUm }}</td>
+
+              <td class="border border-dark">
+                <div>
+                  <button
+                    class="btn btn-sm btn-danger"
+                    @click="
+                      () => {
+                        i.deletedAt = new Date().toISOString();
+                      }
+                    "
+                  >
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </template>
+          </tr>
+        </tbody>
       </table>
     </div>
 
@@ -495,6 +491,22 @@ const foundItem = computed(() => {
         "
       />
     </div> -->
+
+    <div class="d-flex p-2 border border-dark my-3">
+      <div>Has PO?</div>
+      <div class="mx-2">
+        <input
+          type="checkbox"
+          :value="ecn?.hasPo"
+          @click="
+            () => {
+              ecn.hasPo = !ecn.hasPo;
+            }
+          "
+          :checked="ecn.hasPo ? true : false"
+        />
+      </div>
+    </div>
 
     <div><strong>Requested By</strong></div>
     <div>
@@ -609,56 +621,54 @@ const foundItem = computed(() => {
           >
             <table class="table table-sm" :style="`border-collapse: separate`">
               <thead>
+                <tr>
+                  <th
+                    v-for="h in [
+                      '#',
+                      'PN',
+                      'Part Name',
+                      'Part Desc',
+                      'UM',
+                      'Action',
+                    ]"
+                    style="position: sticky; top: 0"
+                    class="bg-dark text-light"
+                  >
+                    {{ h }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(i, i_) in itemsFiltered">
+                  <td class="border border-dark">{{ i_ + 1 }}</td>
+                  <td class="border border-dark">{{ i?.partNum }}</td>
+                  <td class="border border-dark">{{ i?.partName }}</td>
+                  <td class="border border-dark">{{ i?.partDesc }}</td>
+                  <td class="border border-dark">{{ i?.defaultUm }}</td>
+                  <td class="border border-dark">
+                    <div>
+                      <button
+                        class="btn btn-sm btn-primary"
+                        @click="
+                          () => {
+                            ecn.extItemId = i?.id;
 
-             
-              <tr>
-                <th
-                  v-for="h in [
-                    '#',
-                    'PN',
-                    'Part Name',
-                    'Part Desc',
-                    'UM',
-                    'Action',
-                  ]"
-                  style="position: sticky; top: 0"
-                  class="bg-dark text-light"
-                >
-                  {{ h }}
-                </th>
-              </tr>
-            </thead>
-             <tbody>
-              <tr v-for="(i, i_) in itemsFiltered">
-                <td class="border border-dark">{{ i_ + 1 }}</td>
-                <td class="border border-dark">{{ i?.partNum }}</td>
-                <td class="border border-dark">{{ i?.partName }}</td>
-                <td class="border border-dark">{{ i?.partDesc }}</td>
-                <td class="border border-dark">{{ i?.defaultUm }}</td>
-                <td class="border border-dark">
-                  <div>
-                    <button
-                      class="btn btn-sm btn-primary"
-                      @click="
-                        () => {
-                          ecn.extItemId = i?.id;
+                            if (!ecn.items) {
+                              ecn.items = [];
+                            }
 
-                          if (!ecn.items) {
-                            ecn.items = [];
+                            ecn.items = [...ecn.items, { extItemId: i?.id }];
+
+                            dialog = false;
                           }
-
-                          ecn.items = [...ecn.items, { extItemId: i?.id }];
-
-                          dialog = false;
-                        }
-                      "
-                    >
-                      Select
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
+                        "
+                      >
+                        Select
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
             </table>
           </div>
         </div>

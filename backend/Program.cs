@@ -15,7 +15,7 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
-var connString = "server=127.0.0.1;database=engineer;user=root;password=";
+var connString = "server=127.0.0.1;database=engineer;user=root;password=mypass";
 
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -471,8 +471,8 @@ app.MapGet("/api/dashboard/activities/task/{taskId:int}", async (
         ExtPurchaseOrderId = activity.ExtPurchaseOrderId,
         FromCache = activity.FromCache,
         ToCache = activity.ToCache,
-        ExtJobId=activity.ExtJobId,
-        ExtPanelCodeId=activity.ExtPanelCodeId,
+        ExtJobId = activity.ExtJobId,
+        ExtPanelCodeId = activity.ExtPanelCodeId,
         Tasks = activity.Tasks
             .Where(t => t.Id == taskId && t.DeletedAt == null)
             .Select(task => new TaskDto
@@ -524,14 +524,14 @@ app.MapGet("/api/dashboard/activities/task/{taskId:int}", async (
 
 // yang di bawah ini backeup nya yang activity
 app.MapGet("/api/dashboard/activities", async (
-    AppDbContext db, 
-    string? from, 
-    string? to, 
-    int? extInquiryId, 
+    AppDbContext db,
+    string? from,
+    string? to,
+    int? extInquiryId,
     int? taskId, // Parameter baru untuk Task ID
-    bool? withUserNames, 
-    bool? excel, 
-    HttpContext httpContext, 
+    bool? withUserNames,
+    bool? excel,
+    HttpContext httpContext,
     int? userId) =>
 {
     DateTime? fromDate = null;
@@ -581,7 +581,7 @@ app.MapGet("/api/dashboard/activities", async (
         {
             if (userId != null)
             {
-                return a.Tasks?.FirstOrDefault(t => 
+                return a.Tasks?.FirstOrDefault(t =>
                     t.InCharges.Any(ic => ic.ExtUserId == userId)) != null;
             }
             else
@@ -654,8 +654,8 @@ app.MapGet("/api/dashboard/activities", async (
         stream.Position = 0;
 
         httpContext.Response.Headers.Add("Content-Disposition", "attachment; filename=activities.xlsx");
-        return Results.File(stream.ToArray(), 
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+        return Results.File(stream.ToArray(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "activities.xlsx");
     }
 
@@ -1375,6 +1375,7 @@ namespace SupportReportAPI.Models
         public int? Status { get; set; } // 0 = outs, 1 = accepted, 2 = rejected
         public string? ApprovalRemark { get; set; }
         public string? ApprovalFileName { get; set; }
+        public bool? HasPo { get; set; }
 
     }
 
@@ -1815,7 +1816,7 @@ public class ActivityDto
     public DateTime? ToCache { get; set; }
     public List<TaskDto>? Tasks { get; set; }
     public int? ExtJobId { get; set; }
-    
+
     public int? ExtPanelCodeId { get; set; }
 
 }

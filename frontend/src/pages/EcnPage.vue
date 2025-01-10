@@ -31,7 +31,6 @@ const filteredEcns = computed(() => {
   });
 });
 
-
 const ecnCcnFilter = ref(null); // null, 'ECN', atau 'CCN'
 
 // Filter ECN/CCN
@@ -55,9 +54,13 @@ const filteredByEcnCcn = computed(() => {
 // Fungsi untuk mengambil data ECN dari API
 const fetchEngineeringDetailProblemsData = async () => {
   try {
-    const response = await axios.get("http://localhost:5172/engineeringDetailProblems");
+    const response = await axios.get(
+      "http://localhost:5172/engineeringDetailProblems"
+    );
     if (response.data) {
-      ecns.value = Array.isArray(response.data) ? response.data : [response.data];
+      ecns.value = Array.isArray(response.data)
+        ? response.data
+        : [response.data];
     }
   } catch (error) {
     console.error("Failed to fetch ECN data:", error);
@@ -74,7 +77,6 @@ const fetchUsersData = async () => {
     users.value = []; // Fallback ke array kosong jika terjadi error
   }
 };
-
 
 const fetchJobsData = async () => {
   const d = await fetchJobsProtoSimple({ all: true });
@@ -126,27 +128,26 @@ const filteredByPo = computed(() => {
   });
 });
 
-
 // Fungsi untuk mengekspor ke Excel
 const exportToExcel = async () => {
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('Report');
+  const worksheet = workbook.addWorksheet("Report");
 
   worksheet.columns = [
-    { header: 'No', key: 'no', width: 5 },
-    { header: 'ID', key: 'id', width: 10 },
-    { header: 'Date', key: 'date', width: 15 },
-    { header: 'PO Number', key: 'po_number', width: 20 },
-    { header: 'Customer Name', key: 'customer_name', width: 20 },
-    { header: 'Project Name', key: 'project_name', width: 25 },
-    { header: 'ECN/CCN', key: 'ecn_ccn', width: 10 },
-    { header: 'Description', key: 'description', width: 30 },
-    { header: 'Part Numbers', key: 'part_numbers', width: 30 },
-    { header: 'Part Number Count', key: 'part_number_count', width: 20 },
-    { header: 'Reduction/Cost (Rp)', key: 'reduction_cost', width: 15 },
-    { header: 'Increase (Rp)', key: 'increase', width: 15 },
-    { header: 'Decrease (Rp)', key: 'decrease', width: 15 },
-    { header: 'Remark', key: 'remark', width: 20 },
+    { header: "No", key: "no", width: 5 },
+    { header: "ID", key: "id", width: 10 },
+    { header: "Date", key: "date", width: 15 },
+    { header: "PO Number", key: "po_number", width: 20 },
+    { header: "Customer Name", key: "customer_name", width: 20 },
+    { header: "Project Name", key: "project_name", width: 25 },
+    { header: "ECN/CCN", key: "ecn_ccn", width: 10 },
+    { header: "Description", key: "description", width: 30 },
+    { header: "Part Numbers", key: "part_numbers", width: 30 },
+    { header: "Part Number Count", key: "part_number_count", width: 20 },
+    { header: "Reduction/Cost (Rp)", key: "reduction_cost", width: 15 },
+    { header: "Increase (Rp)", key: "increase", width: 15 },
+    { header: "Decrease (Rp)", key: "decrease", width: 15 },
+    { header: "Remark", key: "remark", width: 20 },
   ];
 
   for (let i = 0; i < ecns.value.length; i++) {
@@ -156,8 +157,8 @@ const exportToExcel = async () => {
       (p) => `${p?.id}` === `${e?.extPurchaseOrderId}`
     );
     const projectName = foundPO
-      ? `${foundPO.purchaseOrderNumber} (${foundPO?.account?.name || ''})`
-      : 'No Project Name';
+      ? `${foundPO.purchaseOrderNumber} (${foundPO?.account?.name || ""})`
+      : "No Project Name";
 
     // Ambil detail part number
     let partNumbers = [];
@@ -165,7 +166,7 @@ const exportToExcel = async () => {
     try {
       const response = await axios.get(
         // `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
-         `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
+        `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
       );
       const detailData = response.data;
 
@@ -173,14 +174,16 @@ const exportToExcel = async () => {
       detailData?.items?.forEach((item) => {
         const foundItem = items.value.find((ix) => ix.id === item?.extItemId);
         if (foundItem) {
-          partNumbers.push(foundItem.partNum || `Unknown Part (${item?.extItemId})`);
+          partNumbers.push(
+            foundItem.partNum || `Unknown Part (${item?.extItemId})`
+          );
           partNumbersWithQty.push(
-            `${foundItem.partNum || 'Unknown Part'} (${item?.qty})`
+            `${foundItem.partNum || "Unknown Part"} (${item?.qty})`
           );
         }
       });
     } catch (error) {
-      console.error('Error fetching part numbers:', error);
+      console.error("Error fetching part numbers:", error);
     }
 
     const partNumberCount = partNumbers.length;
@@ -203,44 +206,44 @@ const exportToExcel = async () => {
 
     worksheet.addRow({
       no: i + 1,
-      id: e?.id || '',
+      id: e?.id || "",
       date: e?.tgl
-        ? Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(
-            new Date(e?.tgl ?? '')
+        ? Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(
+            new Date(e?.tgl ?? "")
           )
-        : '',
-      po_number: foundPO?.purchaseOrderNumber || '',
-      customer_name: foundPO?.account?.name || 'Unknown Customer',
+        : "",
+      po_number: foundPO?.purchaseOrderNumber || "",
+      customer_name: foundPO?.account?.name || "Unknown Customer",
       project_name: projectName,
-      ecn_ccn: e?.typeEcnCcn === 0 ? 'ECN' : e?.typeEcnCcn === 1 ? 'CCN' : '',
-      description: e?.detailProblem || '',
-      part_numbers: partNumbers.join(', '),
+      ecn_ccn: e?.typeEcnCcn === 0 ? "ECN" : e?.typeEcnCcn === 1 ? "CCN" : "",
+      description: e?.detailProblem || "",
+      part_numbers: partNumbers.join(", "),
       part_number_count: partNumberCount,
       reduction_cost: reductionCost || 0,
       increase: increase || 0,
       decrease: decrease || 0,
-      remark: e?.remark || '',
+      remark: e?.remark || "",
     });
 
     // Tambahkan data Part Number dan Qty di bawah setiap data
     partNumbersWithQty.forEach((partNumberQty) => {
       worksheet.addRow({
-        no: '',
+        no: "",
         part_numbers: partNumberQty,
-        part_number_count: '',
+        part_number_count: "",
       });
     });
   }
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 
   const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
-  a.download = 'Engineering_Report.xlsx';
+  a.download = "Engineering_Report.xlsx";
   a.click();
   window.URL.revokeObjectURL(url);
 };
@@ -336,6 +339,7 @@ fetchUsersData();
                   'Print',
                   'Approval',
                   'Approval Status',
+                  'Has PO',
                   'Requested By',
                 ]"
               >
@@ -522,7 +526,17 @@ fetchUsersData();
                       : ""
                   }}
                 </td>
-                <td>{{ getUsernameById(e?.extUserId) }}</td> <!-- Tampilkan nama pengguna -->
+                <td
+                  :class="`border border-dark ${
+                    e?.hasPo ? `bg-success text-dark` : `bg-dark text-light`
+                  }`"
+                >
+                  {{ e?.hasPo ? `Yes` : `No` }}
+                </td>
+                <td class="border border-dark">
+                  {{ getUsernameById(e?.extUserId) }}
+                </td>
+                <!-- Tampilkan nama pengguna -->
                 <!-- <td class="border border-dark">{{ d?.foundItem?.partNum }}</td> -->
               </template>
             </tr>
@@ -531,5 +545,4 @@ fetchUsersData();
       </div>
     </div>
   </div>
-  
 </template>
