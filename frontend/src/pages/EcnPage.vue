@@ -55,7 +55,7 @@ const filteredByEcnCcn = computed(() => {
 const fetchEngineeringDetailProblemsData = async () => {
   try {
     const response = await axios.get(
-      "http://localhost:5172/engineeringDetailProblems"
+      `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems`
     );
     if (response.data) {
       ecns.value = Array.isArray(response.data)
