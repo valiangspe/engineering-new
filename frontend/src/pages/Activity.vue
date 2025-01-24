@@ -23,22 +23,15 @@ const activityTypes = ref(["PrePO", "PostPO", "Others"]); // Pilihan PO Type
 const inquiries = ref([]);
 const jobs = ref({ jobs: [] }); // Jika jobs memiliki struktur nested
 
+const users = ref([]);
+const customers = ref([]);
+const activities = ref([]);
 // State
 const dialog = ref(false);
-
+const selectedDepartment = ref(null); // ID departemen yang dipilih
+const filteredUsers = ref([]); // Daftar users yang difilter
 const route = useRoute();
 const taskId = route.query.taskId;
-// Watch perubahan pada taskId
-// watch(
-//   () => taskId,
-//   (newTaskId) => {
-//     if (newTaskId) {
-//       startupById(newTaskId); // Panggil fungsi untuk mengambil data berdasarkan taskId
-//     }
-//   },
-//   { immediate: true } // Jalankan langsung saat komponen di-mount
-// );
-
 
 const taskDialog = ref(false); // Mengontrol dialog
 const selectedTask = ref(null); // Menyimpan data task yang dipilih
@@ -47,13 +40,27 @@ const notificationStore = useNotificationStore();
 const fetchUsersData = async () => {
   try {
     const d = await fetchUsers();
-    console.log("users", d);
+    console.log("Fetched users:", d);
     users.value = d;
   } catch (error) {
     console.error("Error fetching users:", error);
   }
 };
 
+const fetchCustomers = async () => {
+  try {
+    const response = await fetch("https://crm-local.iotech.my.id/api/external/customers");
+    if (!response.ok) {
+      throw new Error(`Failed to fetch customers: ${response.statusText}`);
+    }
+    customers.value = await response.json(); // Simpan data pelanggan di state
+  } catch (error) {
+    console.error("Error fetching customers:", error);
+  }
+};
+onMounted(async () => {
+  await fetchCustomers(); // Memuat data pelanggan dari API
+});
 
 const formatDate = (date) => {
   if (!date) return "";
@@ -73,33 +80,7 @@ const getEngineeringActivityIdByTaskId = (taskId) => {
   }
   console.warn(`Engineering activity dengan task ID ${taskId} tidak ditemukan.`);
   return null; // Kembalikan null jika tidak ditemukan
-};
-// const handlePanelTypeSelection = (selectedPanelType) => {
-//   if (selectedPanelType) {
-//     // Tambahkan task baru ke tabel
-//     form.value.tasks.push({
-//       description: selectedPanelType.processName,
-//       hours: selectedPanelType.minutes / 60, // Konversi menit ke jam
-//       from: new Date().toISOString(),
-//       to: new Date().toISOString(),
-//       inCharges: [],
-//       remark: "",
-//     });
-//   }
-// };
-
-// const processes = ref([]);
-
-// // Fetch all panel processes
-// const fetchProcesses = async () => {
-//     try {
-//       const response = await axios.get(`${import.meta.env.VITE_APP_BASE_URL}/panelprocess`);
-//       processes.value = response.data;
-//     } catch (error) {
-//       console.error('Error fetching panel processes:', error);
-//     }
-//   };
-
+}
 
 // Ambil data role dari `ctx` dan `localStorage`
 const userRoles = computed(() => {
@@ -115,8 +96,6 @@ const userRole = ref(localStorage.getItem('userRole') || ctx.userRole);
 onMounted(async () => {
   await fetchEngineeringActivitiesData();
 });
-
-// Fungsi untuk memuat data aktivitas
 const fetchEngineeringActivitiesData = async () => {
   const d = await fetchEngineeringActivities({
     from: new Date(`${from.value}T00:00:00`).toISOString(),
@@ -125,6 +104,9 @@ const fetchEngineeringActivitiesData = async () => {
   });
   activities.value = d;
 };
+watch(selectedDepartment, () => {
+  fetchEngineeringActivitiesData();
+});
 
 const undoDone = async (task, role) => {
   try {
@@ -147,9 +129,15 @@ const undoDone = async (task, role) => {
   }
 };
 
-const activities = ref([]);
-const users = ref([]);
 const departments = ref([]);
+selectedDepartment.value = null;
+
+const fetchDepartmentsData = async () => {
+  const d = await fetchDepartments();
+  departments.value = [{ id: null, name: "All Departments" }, ...d];
+};
+
+
 const selectedActivity = ref(null);
 const woTemplates = ref(null);
 const pos = ref([]);
@@ -190,12 +178,16 @@ const startupById = async (taskId) => {
   }
 };
 
-
 // Load data saat halaman di-mount
 onMounted(async () => {
   if (taskId) {
     await startupById(taskId);
   }
+});
+
+onMounted(async () => {
+  await fetchUsersData(); // Ambil data pengguna
+  await fetchEngineeringActivitiesData(); // Ambil data aktivitas
 });
 
 // Watch perubahan pada taskId untuk menjaga dialog tetap terbuka
@@ -230,20 +222,6 @@ const loadNotifications = async () => {
     console.error("Error memuat notifikasi:", error);
   }
 };
-// async function loadActivityByTaskId(taskId) {
-//     try {
-//         const response = await fetch(`/api/dashboard/activities?taskId=${taskId}`);
-//         if (!response.ok) {
-//             throw new Error("Gagal memuat aktivitas");
-//         }
-
-//         const activityData = await response.json();
-//         console.log("Activity data:", activityData);
-//         selectedActivity.value = activityData[0]; // Ambil aktivitas pertama jika ada
-//     } catch (error) {
-//         console.error("Error:", error);
-//     }
-// }
 
 async function loadTaskById(taskId) {
   try {
@@ -301,35 +279,11 @@ const removeTask = (index) => {
   };
 };
 
-// const submit = handleSubmit((values) => {
-//   console.log("Form submitted:", values);
-// });
-
-// const fetchUsersData = async () => {
-//   const d = await fetchUsers();
-//   console.log("users", d);
-//   users.value = d;
-// };
-
 const fetchInquiriesData = async () => {
   const d = await fetchInquiries();
   console.log("inquiries", d);
   inquiries.value = d;
 };
-
-const fetchDepartmentsData = async () => {
-  const d = await fetchDepartments();
-  departments.value = d;
-};
-
-// const fetchEngineeringActivitiesData = async () => {
-//   const d = await fetchEngineeringActivities({
-//     from: new Date(`${from.value}T00:00:00`).toISOString(),
-//     to: new Date(`${to.value}T23:59:39`).toISOString(),
-//     userId: selectedFilterUser.value?.id,
-//   });
-//   activities.value = d;
-// };
 
 const fetchWoTemplatesData = async () => {
   const d = await fetchWoTemplates();
@@ -403,12 +357,25 @@ const handleDone = async (task, role) => {
 //   }
 // };
 
-
-
 const handleSave = async () => {
   try {
+    // Pastikan `customers.value` adalah array sebelum memproses
+    if (!Array.isArray(customers.value)) {
+      console.error("Error: customers is not an array:", customers.value);
+      return;
+    }
+
+    // Ambil data customer berdasarkan ID yang dipilih
+    const selectedCustomer = customers.value.find(
+      (customer) => customer.id === form.value.selectedCustomerId
+    );
+
     const updatedForm = {
       ...form.value,
+      customerId: selectedCustomer?.id || null, // Pastikan ID customer dikirim
+      customer: selectedCustomer
+        ? `${selectedCustomer.businessType} ${selectedCustomer.name}`
+        : null, // Format nama customer
       tasks: form.value.tasks.map((task) => ({
         ...task,
         completedByPicId: task.completedByPicId || null,
@@ -458,6 +425,18 @@ const handleSave = async () => {
   }
 };
 
+const filterUsersByDepartment = () => {
+  if (selectedDepartment) {
+    filteredUsers.value = users.value.filter(
+      (user) => user.departmentId === selectedDepartment
+    );
+  } else {
+    filteredUsers.value = [...users.value]; // Jika tidak ada filter, tampilkan semua users
+  }
+};
+onMounted(() => {
+  filteredUsers.value = [...users.value]; // Salin semua users saat pertama kali dimuat
+});
 
 // const handleSave = async () => {
 //   console.log(form.value);
@@ -630,6 +609,24 @@ const alertx = (content) => {
             "
           ></v-autocomplete>
         </div>
+
+        <!-- filtter by dept  -->
+        <!-- <div class="d-flex align-items-end mx-2">
+          <v-autocomplete
+            placeholder="Filter by Department"
+            width="300"
+            :items="departments.map((department) => ({
+              label: department.name,
+              value: department.id,
+            }))"
+            :item-title="(item) => item?.label"
+            @update:model-value="(selectedDepartmentId) => {
+              selectedDepartment.value = selectedDepartmentId;
+              fetchEngineeringActivitiesData();
+            }"
+          />
+        </div> -->
+
       </div>
     </div>
     <div
@@ -649,7 +646,7 @@ const alertx = (content) => {
               'Type',
               'Inquiry',
               'Job',
-
+              'Customer', 
               'From',
               'To',
               'PIC Depts',
@@ -693,6 +690,9 @@ const alertx = (content) => {
                   (j) => `${j?.masterJavaBaseModel?.id}` === `${a?.extJobId}`
                 )?.name
               }}
+            </td>
+            <td class="border border-dark p-0 m-0">
+              {{ a?.customer || 'N/A' }} <!-- Tampilkan nama customer -->
             </td>
             <td class="border border-dark p-0 m-0">
               {{
@@ -871,8 +871,31 @@ const alertx = (content) => {
 
 </div> -->
 
-
           </div>
+          <template v-if="form.type === 'Others'">
+            <div>
+              <strong>Select Customer Name</strong>
+            </div>
+            <div>
+              <v-autocomplete
+                :items="customers?.map((customer) => ({
+                  label: `${customer.businessType} ${customer.name}`, // Gabungkan businessType dan name
+                  value: customer, // Kirim seluruh objek customer
+                }))"
+                :item-title="(item) => item.label"
+                :model-value="form.customer" 
+                @update:model-value="(selected) => {
+                  form.customer = selected; // Simpan objek customer yang dipilih
+                  form.selectedCustomerId = selected?.id; // Simpan ID customer juga
+                }"
+                label="Select a customer or company"
+                outlined
+              ></v-autocomplete>
+            </div>
+          </template>
+
+
+
 
           <template v-if="form.type === 'PrePO'">
             <div>
