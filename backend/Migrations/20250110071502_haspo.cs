@@ -10,11 +10,11 @@ namespace backend.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<bool>(
-                name: "HasPo",
-                table: "EngineeringDetailProblems",
-                type: "tinyint(1)",
-                nullable: true);
+            // migrationBuilder.AddColumn<bool>(
+            //     name: "HasPo",
+            //     table: "EngineeringDetailProblems",
+            //     type: "tinyint(1)",
+            //     nullable: true);
         }
 
         /// <inheritdoc />

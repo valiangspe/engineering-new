@@ -22,13 +22,16 @@ import { useRoute } from "vue-router";
 const activityTypes = ref(["PrePO", "PostPO", "Others"]); // Pilihan PO Type
 const inquiries = ref([]);
 const jobs = ref({ jobs: [] }); // Jika jobs memiliki struktur nested
+const selectedDepartment = ref(""); // Departemen yang dipilih dari dropdown
+const usersMap = ref({}); // Map untuk menyimpan extUserId -> Department Name
+const filteredActivities = ref([]); // Hasil filter activity berdasarkan departemen
 
 const users = ref([]);
 const customers = ref([]);
 const activities = ref([]);
 // State
 const dialog = ref(false);
-const selectedDepartment = ref(null); // ID departemen yang dipilih
+
 const filteredUsers = ref([]); // Daftar users yang difilter
 const route = useRoute();
 const taskId = route.query.taskId;
@@ -46,6 +49,45 @@ const fetchUsersData = async () => {
     console.error("Error fetching users:", error);
   }
 };
+const fetchUsersAndDepartments = async () => {
+  try {
+    // Fetch daftar departemen
+    const deptResponse = await fetch("https://meeting-backend.iotech.my.id/ext-departments");
+    const deptData = await deptResponse.json();
+    departments.value = [{ id: null, name: "All Departments" }, ...deptData];
+
+    // Fetch daftar user
+    const userResponse = await fetch("https://meeting-backend.iotech.my.id/ext-users");
+    const userData = await userResponse.json();
+
+    // Simpan user dalam map { extUserId: departmentName }
+    usersMap.value = userData.reduce((map, user) => {
+      map[user.id] = user.departmentName;
+      return map;
+    }, {});
+
+  } catch (error) {
+    console.error("Error fetching users and departments:", error);
+  }
+};
+watch(selectedDepartment, () => {
+  filterActivities();
+});
+
+const filterActivities = () => {
+  if (!selectedDepartment.value || selectedDepartment.value === "All Departments") {
+    filteredActivities.value = activities.value; // Tampilkan semua jika tidak ada filter
+    return;
+  }
+
+  filteredActivities.value = activities.value.filter(activity => 
+    activity.tasks.some(task => 
+      task.inCharges.some(inCharge => 
+        usersMap.value[inCharge.extUserId] === selectedDepartment.value
+      )
+    )
+  );
+};
 
 const fetchCustomers = async () => {
   try {
@@ -60,6 +102,9 @@ const fetchCustomers = async () => {
 };
 onMounted(async () => {
   await fetchCustomers(); // Memuat data pelanggan dari API
+  await fetchUsersAndDepartments();
+  await fetchEngineeringActivitiesData();
+  filterActivities();
 });
 
 const formatDate = (date) => {
@@ -93,9 +138,9 @@ const userRoles = computed(() => {
 const userRole = ref(localStorage.getItem('userRole') || ctx.userRole);
 
 
-onMounted(async () => {
-  await fetchEngineeringActivitiesData();
-});
+// onMounted(async () => {
+//   await fetchEngineeringActivitiesData();
+// });
 const fetchEngineeringActivitiesData = async () => {
   const d = await fetchEngineeringActivities({
     from: new Date(`${from.value}T00:00:00`).toISOString(),
@@ -152,6 +197,11 @@ const defaultForm = {
 
 const form = ref({ ...defaultForm });
 
+const displayedActivities = computed(() => {
+  return selectedDepartment.value ? filteredActivities.value : activities.value;
+});
+
+
 // Function untuk memuat data dari API
 const startupById = async (taskId) => {
   if (taskId) {
@@ -187,7 +237,7 @@ onMounted(async () => {
 
 onMounted(async () => {
   await fetchUsersData(); // Ambil data pengguna
-  await fetchEngineeringActivitiesData(); // Ambil data aktivitas
+  // await fetchEngineeringActivitiesData(); // Ambil data aktivitas
 });
 
 // Watch perubahan pada taskId untuk menjaga dialog tetap terbuka
@@ -609,6 +659,25 @@ const alertx = (content) => {
             "
           ></v-autocomplete>
         </div>
+           
+         <!-- Dropdown Filter Departemen -->
+         <!-- <select v-model="selectedDepartment" @change="filterActivities">
+              <option value="">Semua Departemen</option>
+              <option v-for="dept in departments" :key="dept.id" :value="dept.name">
+                {{ dept.name }}
+              </option>
+            </select> -->
+            <v-autocomplete
+              placeholder="Filter by Department"
+              width="300"
+              :items="departments.map((department) => ({
+                label: department.name,
+                value: department.name,
+              }))"
+              :item-title="(item) => item?.label"
+              v-model="selectedDepartment"
+            ></v-autocomplete>
+
 
         <!-- filtter by dept  -->
         <!-- <div class="d-flex align-items-end mx-2">
@@ -663,7 +732,7 @@ const alertx = (content) => {
       <tbody>
 
      
-        <tr v-for="(a, i) in activities">
+        <tr v-for="(a, i) in displayedActivities">
           <template
             v-for="d in [
               { filteredTasks: a?.tasks?.filter((t) => !t?.deletedAt) },
