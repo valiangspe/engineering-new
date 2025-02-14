@@ -147,7 +147,7 @@ const exportToExcel = async () => {
     { header: "Reduction/Cost (Rp)", key: "reduction_cost", width: 15 },
     { header: "Increase (Rp)", key: "increase", width: 15 },
     { header: "Decrease (Rp)", key: "decrease", width: 15 },
-    { header: "Remark", key: "remark", width: 20 },
+    // { header: "Remark", key: "remark", width: 20 },
   ];
 
   for (let i = 0; i < ecns.value.length; i++) {

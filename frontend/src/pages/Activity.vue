@@ -74,20 +74,36 @@ watch(selectedDepartment, () => {
   filterActivities();
 });
 
+// const filterActivities = () => {
+//   if (!selectedDepartment.value || selectedDepartment.value === "All Departments") {
+//     filteredActivities.value = activities.value; // Tampilkan semua jika tidak ada filter
+//     return;
+//   }
+
+//   filteredActivities.value = activities.value.filter(activity => 
+//     activity.tasks.some(task => 
+//       task.inCharges.some(inCharge => 
+//         usersMap.value[inCharge.extUserId] === selectedDepartment.value
+//       )
+//     )
+//   );
+// };
+
 const filterActivities = () => {
   if (!selectedDepartment.value || selectedDepartment.value === "All Departments") {
-    filteredActivities.value = activities.value; // Tampilkan semua jika tidak ada filter
+    filteredActivities.value = activities.value; // Jika tidak dipilih, tampilkan semua
     return;
   }
 
-  filteredActivities.value = activities.value.filter(activity => 
-    activity.tasks.some(task => 
-      task.inCharges.some(inCharge => 
-        usersMap.value[inCharge.extUserId] === selectedDepartment.value
+  filteredActivities.value = activities.value.filter(activity =>
+    activity.tasks.some(task =>
+      task.inCharges.some(inCharge =>
+        usersMap.value[inCharge.extUserId] === selectedDepartment.value // Bandingkan dengan department.name
       )
     )
   );
 };
+
 
 const fetchCustomers = async () => {
   try {
@@ -578,126 +594,95 @@ const alertx = (content) => {
       <div><h4>Activity</h4></div>
     </div>
     <div><hr class="border border-dark" /></div>
-    <div class="d-flex align-items-end">
-      <div>
-        <div>From</div>
-        <div>
-          <input
-            :value="from"
-            type="date"
-            class="form-control form-control-sm"
-            @blur="
-              (e) => {
-                from = e.target.value;
-
-                fetchEngineeringActivitiesData();
-              }
-            "
-          />
-        </div>
-      </div>
-      <div>
-        <div>To</div>
-        <div>
-          <input
-            :value="to"
-            type="date"
-            class="form-control form-control-sm"
-            @blur="
-              (e) => {
-                to = e.target.value;
-
-                fetchEngineeringActivitiesData();
-              }
-            "
-          />
-        </div>
-      </div>
-
-      <div class="mx-2 d-flex align-items-end">
-        <div>
-          <button class="btn btn-sm btn-primary" @click="dialog = true">
-            <v-icon icon="mdi-plus" /> Add
-          </button>
-        </div>
-
-        <div>
-          <a
-            :href="`${getEngineeringActivitiesUrl({
-              from: new Date(`${from}T00:00:00`).toISOString(),
-              to: new Date(`${to}T23:59:39`).toISOString(),
-              excel: true,
-              withUserNames: true,
-            })}`"
-          >
-            <button class="btn btn-sm btn-success">
-              <v-icon icon="mdi-download" /> Download
-            </button>
-          </a>
-        </div>
-
-        <div class="d-flex align-items-end mx-2">
-          <v-autocomplete
-            placeholder="Filter user..."
-            width="300"
-            :items="
-              users.map((t) => ({
-                label: `${t?.name} (${
-                  departments.find((d) => `${d?.id}` === `${t?.departmentId}`)
-                    ?.name
-                })`,
-                value: t,
-              }))
-            "
-            :item-title="(u) => u?.label"
-            @update:model-value="
-              (u) => {
-                selectedFilterUser = u;
-
-                fetchEngineeringActivitiesData();
-              }
-            "
-          ></v-autocomplete>
-        </div>
-           
-         <!-- Dropdown Filter Departemen -->
-         <!-- <select v-model="selectedDepartment" @change="filterActivities">
-              <option value="">Semua Departemen</option>
-              <option v-for="dept in departments" :key="dept.id" :value="dept.name">
-                {{ dept.name }}
-              </option>
-            </select> -->
-            <v-autocomplete
-              placeholder="Filter by Department"
-              width="300"
-              :items="departments.map((department) => ({
-                label: department.name,
-                value: department.name,
-              }))"
-              :item-title="(item) => item?.label"
-              v-model="selectedDepartment"
-            ></v-autocomplete>
 
 
-        <!-- filtter by dept  -->
-        <!-- <div class="d-flex align-items-end mx-2">
-          <v-autocomplete
-            placeholder="Filter by Department"
-            width="300"
-            :items="departments.map((department) => ({
-              label: department.name,
-              value: department.id,
-            }))"
-            :item-title="(item) => item?.label"
-            @update:model-value="(selectedDepartmentId) => {
-              selectedDepartment.value = selectedDepartmentId;
-              fetchEngineeringActivitiesData();
-            }"
-          />
-        </div> -->
+    <v-container class="px-4 py-2">
+    <v-row class="align-center">
+      <!-- Bagian Kiri: Input Tanggal & Filter -->
+      <v-col cols="12" sm="8" class="d-flex align-center">
+        <!-- Input "From" Date -->
+        <v-text-field
+          label="From"
+          type="date"
+          v-model="from"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="input-field mr-2"
+          @blur="fetchEngineeringActivitiesData"
+        ></v-text-field>
 
-      </div>
-    </div>
+        <!-- Input "To" Date -->
+        <v-text-field
+          label="To"
+          type="date"
+          v-model="to"
+          density="compact"
+          variant="outlined"
+          hide-details
+          class="input-field mr-2"
+          @blur="fetchEngineeringActivitiesData"
+        ></v-text-field>
+
+        <!-- Filter User -->
+        <v-autocomplete
+          label="Filter by User"
+          :items="users.map(user => ({
+            label: `${user?.name} (${departments.find(d => `${d?.id}` === `${user?.departmentId}`)?.name || 'Unknown'})`,
+            value: user.id // Gunakan ID agar tidak muncul {object}
+          }))"
+          item-title="label" 
+          density="compact"
+          variant="outlined"
+          v-model="selectedFilterUser"
+          hide-details
+          clearable
+          class="input-field mr-2"
+          @update:model-value="fetchEngineeringActivitiesData"
+        ></v-autocomplete>
+
+        <!-- Filter Department -->
+        <v-autocomplete
+          label="Filter by Department"
+          :items="departments.map(department => ({
+            label: department.name,
+            value: department.name // Gunakan nama kembali agar filtering berjalan
+          }))"
+          item-title="label"
+          density="compact"
+          variant="outlined"
+          v-model="selectedDepartment"
+          hide-details
+          clearable
+          class="input-field mr-2"
+          @update:model-value="filterActivities" 
+        ></v-autocomplete>
+
+      </v-col>
+
+      <!-- Bagian Kanan: Tombol -->
+      <v-col cols="12" sm="4" class="d-flex justify-end">
+        <v-btn color="primary" variant="elevated" size="small" class="btn-custom mr-2" @click="dialog = true">
+          <v-icon left>mdi-plus</v-icon> Add
+        </v-btn>
+
+        <a
+          :href="`${getEngineeringActivitiesUrl({
+            from: new Date(`${from}T00:00:00`).toISOString(),
+            to: new Date(`${to}T23:59:39`).toISOString(),
+            excel: true,
+            withUserNames: true,
+          })}`"
+          class="text-decoration-none"
+        >
+          <v-btn color="success" variant="elevated" size="small" class="btn-custom">
+            <v-icon left>mdi-download</v-icon> Download
+          </v-btn>
+        </a>
+      </v-col>
+    </v-row>
+  </v-container>
+
     <div
       class="overflow-auto border border-dark"
       style="height: 60vh; resize: vertical"
@@ -750,18 +735,18 @@ const alertx = (content) => {
                   },
                 ]"
                 >{{ d?.foundInquiry?.inquiryNumber }} -
-                {{ d?.foundInquiry?.account?.name }}</template
+                {{ d?.foundInquiry?.account?.name ||'Belum Memilih'}}</template
               >
             </td>
             <td class="border border-dark p-0 m-0">
               {{
                 jobs?.jobs?.find(
                   (j) => `${j?.masterJavaBaseModel?.id}` === `${a?.extJobId}`
-                )?.name
+                )?.name|| 'Belum Memilih'
               }}
             </td>
             <td class="border border-dark p-0 m-0">
-              {{ a?.customer || 'N/A' }} <!-- Tampilkan nama customer -->
+              {{ a?.customer || 'Belum Memilih' }} <!-- Tampilkan nama customer -->
             </td>
             <td class="border border-dark p-0 m-0">
               {{
@@ -1583,3 +1568,21 @@ const alertx = (content) => {
   </div>
 </keep-alive>
 </template>
+
+<style scoped>
+.input-field {
+  font-size: 14px;
+  height: 38px; /* Ukuran yang seragam */
+  min-width: 160px; /* Supaya input tidak terlalu kecil */
+}
+
+.btn-custom {
+  min-width: 110px;
+  padding: 4px 12px;
+  font-size: 14px;
+}
+
+.mr-2 {
+  margin-right: 8px;
+}
+</style>

@@ -1,266 +1,190 @@
 <template>
-    <div class="user-role-page">
-      <h1>User Role Management</h1>
-      <button class="btn btn-add" @click="showCreateForm">Add New Role</button>
-      <!-- Form untuk menambah atau mengedit role -->
-      <div v-if="isFormVisible" class="form-container">
-        <h2>{{ selectedRole ? 'Edit' : 'Add' }} User Role</h2>
-        <form @submit.prevent="saveRole" class="role-form">
-          <div class="form-group">
-            <label>User:</label>
-            <select v-model="formData.userId" required>
-              <option value="" disabled>Pilih User</option>
-              <option v-for="user in users" :key="user.id" :value="user.id">
-                {{ user.username }} (ID: {{ user.id }})
-              </option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Role:</label>
-            <select v-model="formData.role" required>
-              <option value="pic">PIC</option>
-              <option value="spv">SPV</option>
-              <option value="manager">Manager</option>
-            </select>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">{{ selectedRole ? 'Update' : 'Create' }}</button>
-            <button type="button" class="btn btn-secondary" @click="cancelEdit">Cancel</button>
-          </div>
-        </form>
-      </div>
-  
-      <!-- Daftar User Role -->
-      <div class="table-container">
-        <h2>User Roles List</h2>
-        <table class="user-role-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>User ID</th>
-              <th>Role</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="role in roles" :key="role.id">
-              <td>{{ role.id }}</td>
-              <td>{{ getUserNameById(role.userId) }}</td>
-              <td>{{ role.role }}</td>
-              <td>
-                <button class="btn btn-edit" @click="editRole(role)">Edit</button>
-                <button class="btn btn-delete" @click="deleteRole(role.id)">Delete</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-  
-        
-      </div>
-    </div>
-  </template>
-  
-  <script>
-  import axios from 'axios';
-  
-  export default {
-    data() {
-      return {
-        roles: [],
-        users: [], // Daftar pengguna dari API eksternal
-        isFormVisible: false,
-        selectedRole: null,
-        formData: {
-          userId: '',
-          role: 'pic'
-        }
-      };
-    },
-    methods: {
-      fetchRoles() {
-        // Ambil data roles dari backend
-        axios.get(`${import.meta.env.VITE_APP_BASE_URL}/api/userroles`)  // Sesuaikan URL di sini
-          .then(response => {
-            this.roles = response.data;
-          })
-          .catch(error => {
-            console.error('Error fetching roles:', error);
-          });
-      },
-      fetchUsers() {
-        // Memanggil API eksternal untuk mengambil daftar pengguna
-        axios.get('https://meeting-backend.iotech.my.id/ext-users')
-          .then(response => {
-            this.users = response.data;
-          })
-          .catch(error => {
-            console.error('Error fetching users:', error);
-          });
-      },
-      getUserNameById(userId) {
-        const user = this.users.find(user => user.id === userId);
-        return user ? user.username : 'Unknown';
-      },
-      showCreateForm() {
-        this.isFormVisible = true;
-        this.selectedRole = null;
-        this.formData = {
-          userId: '',
-          role: 'pic'
-        };
-      },
-      editRole(role) {
-        this.isFormVisible = true;
-        this.selectedRole = role;
-        this.formData = {
-          userId: role.userId,
-          role: role.role
-        };
-      },
-      saveRole() {
-        if (this.selectedRole) {
-  this.formData.id = this.selectedRole.id; // Tambahkan Id ke formData untuk mencocokkan di backend
+  <v-container class="py-4 d-flex justify-center">
+    <v-card elevation="2" class="pa-4 card-container">
+      <v-card-title class="d-flex justify-space-between align-center">
+        <h2>User Role Management</h2>
+        <v-btn color="primary" @click="showCreateForm">
+          <v-icon left>mdi-plus</v-icon> Add New Role
+        </v-btn>
+      </v-card-title>
 
-  axios.put(`${import.meta.env.VITE_APP_BASE_URL}/api/userroles/${this.selectedRole.id}`, this.formData)
-    .then(() => {
-      this.fetchRoles();
-      this.isFormVisible = false;
-    })
-    .catch(error => {
-      console.error('Error updating role:', error);
-    });
-}
-else {
-          // Create new role
-          axios.post(`${import.meta.env.VITE_APP_BASE_URL}/api/userroles`, this.formData)  // Perbaiki URL menjadi 'userroles'
-            .then(() => {
-              this.fetchRoles();
-              this.isFormVisible = false;
-            })
-            .catch(error => {
-              console.error('Error creating role:', error);
-            });
-        }
-      },
-      deleteRole(id) {
-        axios.delete(`${import.meta.env.VITE_APP_BASE_URL}/api/userroles/${id}`)  // Sesuaikan URL delete
-          .then(() => {
-            this.fetchRoles();
-          })
-          .catch(error => {
-            console.error('Error deleting role:', error);
-          });
-      },
-      cancelEdit() {
-        this.isFormVisible = false;
-        this.selectedRole = null;
-      }
-    },
-    mounted() {
-      this.fetchRoles();
-      this.fetchUsers(); // Memanggil data pengguna saat komponen dimuat
+      <!-- Tabel User Role -->
+      <v-data-table
+        :headers="headers"
+        :items="roles"
+        class="elevation-1 mt-3"
+        dense
+      >
+        <template v-slot:item.userId="{ item }">
+          {{ getUserNameById(item.userId) }}
+        </template>
+
+        <template v-slot:item.actions="{ item }">
+          <v-btn icon small color="green" @click="editRole(item)">
+            <v-icon>mdi-pencil</v-icon>
+          </v-btn>
+          <v-btn icon small color="red" @click="deleteRole(item.id)">
+            <v-icon>mdi-delete</v-icon>
+          </v-btn>
+        </template>
+      </v-data-table>
+    </v-card>
+
+    <!-- Form Tambah/Edit Role -->
+    <v-dialog v-model="isFormVisible" persistent max-width="400px">
+      <v-card>
+        <v-card-title>
+          <h3>{{ selectedRole ? "Edit" : "Add" }} User Role</h3>
+        </v-card-title>
+        <v-card-text>
+          <v-form @submit.prevent="saveRole">
+            <v-select
+              v-model="formData.userId"
+              :items="users.map(user => ({ title: user.username, value: user.id }))"
+              label="Select User"
+              required
+            ></v-select>
+
+            <v-select
+              v-model="formData.role"
+              :items="rolesList"
+              label="Select Role"
+              required
+            ></v-select>
+
+            <div class="d-flex justify-end mt-4">
+              <v-btn color="grey" @click="cancelEdit" class="mr-2">Cancel</v-btn>
+              <v-btn type="submit" color="primary">
+                <v-icon left>mdi-content-save</v-icon>
+                {{ selectedRole ? "Update" : "Create" }}
+              </v-btn>
+            </div>
+          </v-form>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+  </v-container>
+</template>
+
+<script setup>
+import { ref, onMounted } from "vue";
+import axios from "axios";
+
+const roles = ref([]);
+const users = ref([]);
+const isFormVisible = ref(false);
+const selectedRole = ref(null);
+const formData = ref({
+  userId: "",
+  role: "pic",
+});
+
+const rolesList = [
+  { title: "PIC", value: "pic" },
+  { title: "SPV", value: "spv" },
+  { title: "Manager", value: "manager" },
+];
+
+const headers = [
+  { text: "ID", value: "id", sortable: false },
+  { text: "User", value: "userId", sortable: false },
+  { text: "Role", value: "role", sortable: false },
+  { text: "Actions", value: "actions", align: "end", sortable: false },
+];
+
+const fetchRoles = async () => {
+  try {
+    const response = await axios.get(`${import.meta.env.VITE_APP_BASE_URL}/api/userroles`);
+    roles.value = response.data;
+  } catch (error) {
+    console.error("Error fetching roles:", error);
+  }
+};
+
+const fetchUsers = async () => {
+  try {
+    const response = await axios.get("https://meeting-backend.iotech.my.id/ext-users");
+    users.value = response.data;
+  } catch (error) {
+    console.error("Error fetching users:", error);
+  }
+};
+
+const getUserNameById = (userId) => {
+  const user = users.value.find((user) => user.id === userId);
+  return user ? user.username : "Unknown";
+};
+
+const showCreateForm = () => {
+  isFormVisible.value = true;
+  selectedRole.value = null;
+  formData.value = { userId: "", role: "pic" };
+};
+
+const editRole = (role) => {
+  isFormVisible.value = true;
+  selectedRole.value = role;
+  formData.value = { userId: role.userId, role: role.role };
+};
+
+const saveRole = async () => {
+  try {
+    if (selectedRole.value) {
+      await axios.put(`${import.meta.env.VITE_APP_BASE_URL}/api/userroles/${selectedRole.value.id}`, formData.value);
+    } else {
+      await axios.post(`${import.meta.env.VITE_APP_BASE_URL}/api/userroles`, formData.value);
     }
-  };
-  </script>
-  
+    isFormVisible.value = false;
+    fetchRoles();
+  } catch (error) {
+    console.error("Error saving role:", error);
+  }
+};
 
-  
+const deleteRole = async (id) => {
+  try {
+    await axios.delete(`${import.meta.env.VITE_APP_BASE_URL}/api/userroles/${id}`);
+    fetchRoles();
+  } catch (error) {
+    console.error("Error deleting role:", error);
+  }
+};
+
+const cancelEdit = () => {
+  isFormVisible.value = false;
+  selectedRole.value = null;
+};
+
+onMounted(() => {
+  fetchRoles();
+  fetchUsers();
+});
+</script>
 
 <style scoped>
-.user-role-page {
-  padding: 20px;
-  font-family: Arial, sans-serif;
+.v-container {
+  max-width: 2000px; /* Perbesar agar lebih proporsional */
+  margin: auto;
 }
 
-.form-container {
-  margin-bottom: 20px;
-}
-
-.role-form {
-  display: flex;
-  flex-direction: column;
-  max-width: 400px;
-  margin: 0 auto;
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.form-group select, .form-group input {
+.card-container {
+  max-width: 75%;
   width: 100%;
-  padding: 8px;
-  font-size: 14px;
+  padding: 24px;
+  border-radius: 10px;
 }
 
-.form-actions {
-  display: flex;
-  justify-content: space-between;
+.v-btn {
+  text-transform: none;
 }
 
-.btn {
-  padding: 8px 15px;
-  font-size: 14px;
-  cursor: pointer;
-  border: none;
-  border-radius: 4px;
-}
-
-.btn-primary {
-  background-color: #007bff;
-  color: white;
-}
-
-.btn-secondary {
-  background-color: #6c757d;
-  color: white;
-}
-
-.table-container {
+.v-data-table {
   margin-top: 20px;
-}
-
-.user-role-table {
   width: 100%;
-  border-collapse: collapse;
-  margin-top: 20px;
 }
 
-.user-role-table th, .user-role-table td {
-  border: 1px solid #ddd;
-  padding: 10px;
-  text-align: left;
+.v-card {
+  border-radius: 20px;
 }
 
-.user-role-table th {
-  background-color: #f4f4f4;
-}
-
-.user-role-table td {
-  background-color: #fff;
-}
-
-.btn-edit {
-  background-color: #28a745;
-  color: white;
-  margin-right: 5px;
-}
-
-.btn-delete {
-  background-color: #dc3545;
-  color: white;
-}
-
-.btn-add {
-  background-color: #17a2b8;
-  color: white;
-  padding: 10px;
-  margin-top: 20px;
-}
 </style>

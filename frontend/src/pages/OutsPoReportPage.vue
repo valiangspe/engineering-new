@@ -302,11 +302,19 @@ const items = computed(() => {
       const hasIncompleteTasks = allTasks.some((task) => !task?.completedDate);
 
       const totalTasks = activity?.tasks?.length || 0;
+      // const doneTasks =
+      //   activity?.tasks?.filter(
+      //     (task) =>
+      //       task?.completedDatePic ||
+      //       task?.completedDateSpv ||
+      //       task?.completedDateManager
+      //   )?.length || 0;
+
       const doneTasks =
         activity?.tasks?.filter(
           (task) =>
-            task?.completedDatePic ||
-            task?.completedDateSpv ||
+            task?.completedDatePic &&
+            task?.completedDateSpv &&
             task?.completedDateManager
         )?.length || 0;
 
