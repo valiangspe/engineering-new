@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed ,watch , onMounted} from "vue";
+import axios from "axios";
 // import { ref } from "vue";
 import {
   fetchDepartments,
@@ -25,6 +26,7 @@ const jobs = ref({ jobs: [] }); // Jika jobs memiliki struktur nested
 const selectedDepartment = ref(""); // Departemen yang dipilih dari dropdown
 const usersMap = ref({}); // Map untuk menyimpan extUserId -> Department Name
 const filteredActivities = ref([]); // Hasil filter activity berdasarkan departemen
+const supportTables = ref([]);
 
 const users = ref([]);
 const customers = ref([]);
@@ -39,6 +41,30 @@ const taskId = route.query.taskId;
 const taskDialog = ref(false); // Mengontrol dialog
 const selectedTask = ref(null); // Menyimpan data task yang dipilih
 const notificationStore = useNotificationStore(); 
+const showOtherDialog = ref(false);
+const otherActivity = ref({ name: '', file: null });
+
+const saveOtherActivity = async () => {
+  try {
+    let formData = new FormData();
+    formData.append('name', otherActivity.value.name);
+    formData.append('file', otherActivity.value.file);
+
+    const response = await axios.post(
+      `${import.meta.env.VITE_APP_BASE_URL}/supporttables`,
+      formData
+    );
+
+    if (response.status === 201) {
+      form.value.selectedSupportDocId = response.data.id;
+      form.value.type = 'Others';
+      showOtherDialog.value = false;
+      fetchSupportTables(); // Refresh daftar Support Tables
+    }
+  } catch (error) {
+    console.error("Error saving other activity:", error);
+  }
+};
 
 const fetchUsersData = async () => {
   try {
@@ -49,6 +75,18 @@ const fetchUsersData = async () => {
     console.error("Error fetching users:", error);
   }
 };
+const fetchSupportTables = async () => {
+  try {
+    const response = await axios.get(`${import.meta.env.VITE_APP_BASE_URL}/supporttables`);
+    supportTables.value = response.data;
+  } catch (error) {
+    console.error("Error fetching support tables:", error);
+  }
+};
+onMounted(async () => {
+  await fetchSupportTables(); 
+});
+
 const fetchUsersAndDepartments = async () => {
   try {
     // Fetch daftar departemen
@@ -448,6 +486,8 @@ const handleSave = async () => {
         completedBySpvId: task.completedBySpvId || null,
         completedByManagerId: task.completedByManagerId || null,
       })),
+      selectedSupportDocId:
+        form.value.type === "PrePO" ? form.value.selectedSupportDocId : null, // Tambahkan support doc ID jika PrePO
     };
 
     const resp = await fetch(
@@ -947,8 +987,59 @@ const alertx = (content) => {
               ></v-autocomplete>
             </div>
           </template>
+          
+          <template v-if="form.type === 'PrePO'">
+            <div>
+              <strong>Support Document</strong>
+            </div>
+            <div>     
+              <v-autocomplete
+                v-model="form.selectedSupportDocId"
+                :items="[
+                  ...supportTables.map(doc => ({ label: doc.name, value: doc.id })),
+                  // { label: 'Others', value: 'Others' }
+                ]"
+                item-title="label"
+                item-value="value"
+                label="Select Support Document"
+                outlined
+                @update:modelValue="(a) => {
+                  console.log('Selected value:', a); // Debugging
+                  if (a === 'Others') {
+                    showOtherDialog = true;
+                  }
+                }"
+              />
+              <!-- <v-autocomplete
+                v-model="form.type"
+                :items="[...activityTypes.map((t) => ({ label: t, value: t })), { label: 'Others', value: 'Others' }]"
+                item-title="label"
+                item-value="value"
+                label="Select Activity Type"
+                outlined
+                @update:modelValue="(a) => {
+                  if (a === 'Others') {
+                    showOtherDialog = true;
+                  }
+                }"
+              ></v-autocomplete> -->
+            </div>
 
-
+            <!-- Modal untuk "Other" -->
+            <v-dialog v-model="showOtherDialog" max-width="500px">
+              <v-card>
+                <v-card-title>Upload Other Activity</v-card-title>
+                <v-card-text>
+                  <v-text-field v-model="otherActivity.name" label="Activity Name"></v-text-field>
+                  <v-file-input label="Upload File" v-model="otherActivity.file"></v-file-input>
+                </v-card-text>
+                <v-card-actions>
+                  <v-btn color="primary" @click="saveOtherActivity">Save</v-btn>
+                  <v-btn color="secondary" @click="showOtherDialog = false">Cancel</v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-dialog>
+          </template>
 
 
           <template v-if="form.type === 'PrePO'">

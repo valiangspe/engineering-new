@@ -270,39 +270,38 @@ fetchUsersData();
 </script>
 <template>
   <div class="m-3">
-    <div class="d-flex">
-      <h4>ECN</h4>
-      <div>
-        <button @click="exportToExcel" class="btn btn-sm btn-success mx-2">
-          Export to Excel
-        </button>
-      </div>
-      <div>
-        <a href="/#/ecn/add">
-          <button class="btn btn-sm btn-primary mx-2 px-1 py-0">Add</button>
-        </a>
-      </div>
-    </div>
+    <v-container>
+      <v-row align="center" class="mb-4">
+        <v-col cols="6">
+          <h2 class="text-h5 font-weight-bold">Engineering Change Notice (ECN)</h2>
+        </v-col>
+        <v-col cols="6" class="text-right">
+          <v-btn color="success" @click="exportToExcel">Export to Excel</v-btn>
+          <v-btn color="primary" class="ml-2" to="/ecn/add">Add</v-btn>
+        </v-col>
+      </v-row>
+    </v-container>
 
-    <div class="me-3">
-      <label for="ecnCcnFilter" class="form-label">Filter ECN/CCN</label>
-      <select id="ecnCcnFilter" class="form-select" v-model="ecnCcnFilter">
-        <option :value="null">All</option>
-        <option value="ECN">ECN</option>
-        <option value="CCN">CCN</option>
-      </select>
-    </div>
 
-    <div>
-      <label for="poSearch" class="form-label">Search PO</label>
-      <input
-        id="poSearch"
-        type="text"
-        class="form-control"
-        v-model="poSearch"
-        placeholder="Search by PO Number"
-      />
-    </div>
+    <v-row>
+      <v-col cols="6">
+        <v-select
+          v-model="ecnCcnFilter"
+          label="Filter ECN/CCN"
+          :items="['All', 'ECN', 'CCN']"
+          outlined
+        ></v-select>
+      </v-col>
+      <v-col cols="6">
+        <v-text-field
+          v-model="poSearch"
+          label="Search PO Number"
+          outlined
+          clearable
+        ></v-text-field>
+      </v-col>
+    </v-row>
+
 
     <div><hr /></div>
     <div>

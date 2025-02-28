@@ -45,6 +45,8 @@ import NotificationsPage from "./pages/Notifications.vue";
 import AIDocumentAnalyzerPage from "./pages/AIDocumentAnalyzerPage.vue";
 import AIDocumentAnalyzerInqPage from "./pages/AIDocumentAnalyzerInqPage.vue";
 import engTimeProcess from "./EngineerTImeProcess.vue"
+import SupportDoc from "./pages/SupportDoc.vue";
+
 const routes = [
   // dynamic segments start with a colon
   { path: "/", component: Dashboard },
@@ -79,6 +81,7 @@ const routes = [
   { path: "/notifications", component: NotificationsPage },
 
   { path: "/addRole", component: role},
+  { path: "/supportDoc", component: SupportDoc }, 
 
   { path: "/engineerTimeProcess", component: engTimeProcess },
   // { 

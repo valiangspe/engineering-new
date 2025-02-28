@@ -11,7 +11,7 @@ using System.Security.AccessControl;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-
+using SupportReportAPI.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
@@ -174,23 +174,30 @@ app.MapGet("/engineeringDetailProblems/{id}", async (AppDbContext db, int id) =>
 app.MapGet("/engineeringDetailProblems/{id}/photo", async (AppDbContext db, int id) =>
 {
     var ecnFound = db.EngineeringDetailProblems.Where(e => e.Id == id).FirstOrDefault();
+    if (ecnFound == null || string.IsNullOrEmpty(ecnFound.ApprovalFileName))
+        return Results.NotFound("File not found.");
 
-    return Results.File(await System.IO.File.ReadAllBytesAsync($"./files/ecn_doc_{id}"), GetContentType(ecnFound.ApprovalFileName), ecnFound.ApprovalFileName);
+    var filePath = $"./files/ecn_doc_{id}";
+    if (!File.Exists(filePath))
+        return Results.NotFound("File not found.");
+
+    return Results.File(await File.ReadAllBytesAsync(filePath), FileHelper.GetContentType(filePath), ecnFound.ApprovalFileName);
 });
 
-string GetContentType(string filePath)
-{
-    var ext = filePath.Split(".").LastOrDefault();
-    return ext switch
-    {
-        ".txt" => "text/plain",
-        ".pdf" => "application/pdf",
-        ".jpg" => "image/jpeg",
-        ".png" => "image/png",
-        ".zip" => "application/zip",
-        _ => "application/octet-stream",
-    };
-}
+
+// string GetContentType(string filePath)
+// {
+//     var ext = filePath.Split(".").LastOrDefault();
+//     return ext switch
+//     {
+//         ".txt" => "text/plain",
+//         ".pdf" => "application/pdf",
+//         ".jpg" => "image/jpeg",
+//         ".png" => "image/png",
+//         ".zip" => "application/zip",
+//         _ => "application/octet-stream",
+//     };
+// }
 
 
 app.MapPost("/engineeringDetailProblems", async (EngineeringDetailProblem engineeringDetailProblem, AppDbContext db) =>
@@ -528,140 +535,47 @@ app.MapGet("/api/dashboard/activities", async (
     string? from,
     string? to,
     int? extInquiryId,
-    int? taskId, // Parameter baru untuk Task ID
+    int? taskId,
+    int? supportTableId, // Tambahan filter SupportTableId
     bool? withUserNames,
     bool? excel,
     HttpContext httpContext,
     int? userId) =>
 {
-    DateTime? fromDate = null;
-    DateTime? toDate = null;
+    DateTime? fromDate = string.IsNullOrEmpty(from) ? null : DateTime.Parse(from);
+    DateTime? toDate = string.IsNullOrEmpty(to) ? null : DateTime.Parse(to);
 
-    if (!string.IsNullOrEmpty(from))
-    {
-        fromDate = DateTime.Parse(from);
-    }
-    if (!string.IsNullOrEmpty(to))
-    {
-        toDate = DateTime.Parse(to);
-    }
-
-    // Query dasar
     var activitiesQuery = db.EngineeringActivities
         .Include(a => a.Tasks)
-        .ThenInclude(t => t.InCharges)
+            .ThenInclude(t => t.InCharges)
         .AsQueryable();
 
-    // Filter by date range
     if (fromDate != null)
-    {
         activitiesQuery = activitiesQuery.Where(a => a.ToCache >= fromDate);
-    }
-
     if (toDate != null)
-    {
         activitiesQuery = activitiesQuery.Where(a => a.FromCache <= toDate);
-    }
-
-    // Filter by extInquiryId
     if (extInquiryId != null && extInquiryId != 0)
-    {
         activitiesQuery = activitiesQuery.Where(a => a.ExtInquiryId == extInquiryId);
-    }
-
-    // **Filter by Task ID** (Penambahan kode)
     if (taskId != null)
-    {
         activitiesQuery = activitiesQuery.Where(a => a.Tasks.Any(t => t.Id == taskId));
-    }
+    if (supportTableId != null)
+        activitiesQuery = activitiesQuery.Where(a => a.SupportTableId == supportTableId);
 
-    // Filter by userId
-    var activities = (await activitiesQuery.ToListAsync())
-        .Where(a =>
-        {
-            if (userId != null)
-            {
-                return a.Tasks?.FirstOrDefault(t =>
-                    t.InCharges.Any(ic => ic.ExtUserId == userId)) != null;
-            }
-            else
-            {
-                return true;
-            }
-        }).ToList();
+    var activities = (await activitiesQuery.ToListAsync()).Where(a =>
+        userId == null || a.Tasks.Any(t => t.InCharges.Any(ic => ic.ExtUserId == userId))).ToList();
 
-    // Tambahkan user names jika diminta
     if (withUserNames == true)
     {
         var users = await Fetcher.fetchUsersAsync();
-
-        activities.ForEach(a =>
+        activities.ForEach(a => a.Tasks.ForEach(t => t.InCharges.ForEach(c =>
         {
-            a.Tasks.ForEach(t =>
-            {
-                t.InCharges.ForEach(c =>
-                {
-                    var foundUser = users.FirstOrDefault(u => u.Id == c.ExtUserId);
-                    c.PicName = foundUser?.Name ?? "";
-                });
-            });
-        });
-    }
-
-    // Handle Excel export jika diminta
-    if (excel == true)
-    {
-        using var workbook = new XLWorkbook();
-        var worksheet = workbook.Worksheets.Add("Activities");
-
-        var pos = await Fetcher.fetchCrmPurchaseOrdersAsync();
-        var inqs = await Fetcher.fetchCrmInquiriesAsync();
-
-        worksheet.Cell(1, 1).Value = "Task Name";
-        worksheet.Cell(1, 2).Value = "Type";
-        worksheet.Cell(1, 3).Value = "PO";
-        worksheet.Cell(1, 4).Value = "Inq";
-        worksheet.Cell(1, 5).Value = "Quo";
-        worksheet.Cell(1, 6).Value = "In Charge";
-        worksheet.Cell(1, 7).Value = "Hours";
-        worksheet.Cell(1, 8).Value = "Start Date";
-        worksheet.Cell(1, 9).Value = "End Date";
-
-        int row = 2;
-        foreach (var activity in activities)
-        {
-            var foundPO = pos.FirstOrDefault(p => p.Id == activity.ExtPurchaseOrderId);
-            var foundInq = inqs.FirstOrDefault(p => p.Id == activity.ExtInquiryId);
-
-            foreach (var task in activity.Tasks.Where(t => t.DeletedAt == null))
-            {
-                worksheet.Cell(row, 1).Value = task.Description;
-                worksheet.Cell(row, 2).Value = $"{activity.Type}";
-                worksheet.Cell(row, 3).Value = $"{foundPO?.purchaseOrderNumber} ({foundPO?.Account?.Name})";
-                worksheet.Cell(row, 4).Value = $"{foundInq?.InquiryNumber} ({foundInq?.Account?.Name})";
-                worksheet.Cell(row, 5).Value = $"{foundInq?.Quotation?.Name}";
-                worksheet.Cell(row, 6).Value = string.Join(", ", task.InCharges?.Select(i => i.PicName) ?? []);
-                worksheet.Cell(row, 7).Value = $"{task.Hours}";
-                worksheet.Cell(row, 8).Value = activity.FromCache?.ToString("yyyy-MM-dd");
-                worksheet.Cell(row, 9).Value = activity.ToCache?.ToString("yyyy-MM-dd");
-
-                row++;
-            }
-        }
-
-        using var stream = new MemoryStream();
-        workbook.SaveAs(stream);
-        stream.Position = 0;
-
-        httpContext.Response.Headers.Add("Content-Disposition", "attachment; filename=activities.xlsx");
-        return Results.File(stream.ToArray(),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "activities.xlsx");
+            var foundUser = users.FirstOrDefault(u => u.Id == c.ExtUserId);
+            c.PicName = foundUser?.Name ?? "";
+        })));
     }
 
     return Results.Ok(activities);
 });
-
 // app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, string? to, int? extInquiryId, bool? withUserNames, bool? excel, HttpContext httpContext, int? userId) =>
 // {
 
@@ -807,10 +721,38 @@ app.MapGet("/api/dashboard/activities", async (
 
 
 app.MapGet("/api/dashboard/activities/{id}", async (AppDbContext db, int id) =>
-db.EngineeringActivities
-.Include(a => a.Tasks)
-.ThenInclude(t => t.InCharges)
-.FirstOrDefault(a => a.Id == id));
+    await db.EngineeringActivities
+        .Include(a => a.Tasks)
+            .ThenInclude(t => t.InCharges)
+        .Where(a => a.Id == id)
+        .Select(a => new ActivityDto
+        {
+            Id = a.Id,
+            Description = a.Description,
+            Type = a.Type,
+            ExtInquiryId = a.ExtInquiryId,
+            ExtPurchaseOrderId = a.ExtPurchaseOrderId,
+            FromCache = a.FromCache,
+            ToCache = a.ToCache,
+            ExtJobId = a.ExtJobId,
+            ExtPanelCodeId = a.ExtPanelCodeId,
+            SupportTableId = a.SupportTableId, // Pastikan ini ada di DTO
+            Tasks = a.Tasks.Select(t => new TaskDto
+            {
+                Id = t.Id,
+                Description = t.Description,
+                From = t.From,
+                To = t.To,
+                Hours = t.Hours,
+                Remark = t.Remark,
+                InCharges = t.InCharges.Select(i => new InChargeDto
+                {
+                    Id = i.Id,
+                    ExtUserId = i.ExtUserId,
+                    PicName = i.PicName
+                }).ToList()
+            }).ToList()
+        }).FirstOrDefaultAsync());
 
 app.MapGet("/api/dashboard/activities/test", async (AppDbContext db) =>
 {
@@ -832,21 +774,31 @@ app.MapGet("/api/dashboard/activities/test", async (AppDbContext db) =>
 });
 app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, AppDbContext db) =>
 {
+    // **Perbaikan: Pastikan SupportTableId mendapatkan nilai dari selectedSupportDocId**
+    if (activity.SupportTableId == null && activity.GetType().GetProperty("selectedSupportDocId") != null)
+    {
+        var selectedSupportDocId = (int?)activity.GetType().GetProperty("selectedSupportDocId")?.GetValue(activity);
+        if (selectedSupportDocId != null)
+        {
+            activity.SupportTableId = selectedSupportDocId;
+        }
+    }
+
+    // Perbaikan logika sorting tanggal
     var tasksSortedFrom = activity.Tasks?.Where(t => t.From != null && t.DeletedAt == null)?.ToList();
     var tasksSortedTo = activity.Tasks?.Where(t => t.From != null && t.DeletedAt == null)?.ToList();
 
     tasksSortedFrom?.Sort((a, b) => a.From?.CompareTo(b.From) ?? 0);
-
     activity.FromCache = tasksSortedFrom?.First()?.From;
 
     tasksSortedTo?.Sort((a, b) => b.To?.CompareTo(a.To) ?? 0);
-
-
     activity.ToCache = tasksSortedTo?.First()?.To;
 
     db.Update(activity);
     await db.SaveChangesAsync();
+    return Results.Ok(activity);
 });
+
 
 // app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, AppDbContext db, HttpContext httpContext) =>
 // {
@@ -1240,6 +1192,161 @@ app.MapGet("/api/notifications/{id}", async (AppDbContext db, int id) =>
     return Results.Ok(notification);
 });
 
+// support endpoint
+var uploadDirectory = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
+if (!Directory.Exists(uploadDirectory))
+{
+    Directory.CreateDirectory(uploadDirectory);
+}
+
+// Get all SupportTables
+app.MapGet("/supporttables", async (AppDbContext db) =>
+    await db.SupportTables.ToListAsync());
+
+// Get a SupportTable by ID
+app.MapGet("/supporttables/{id:int}", async (AppDbContext db, int id) =>
+{
+    var supportTable = await db.SupportTables.FindAsync(id);
+    return supportTable is not null ? Results.Ok(supportTable) : Results.NotFound();
+});
+app.MapGet("/supporttables/download/{fileName}", async (string fileName, HttpContext httpContext) =>
+{
+    var filePath = Path.Combine("uploads", fileName); // Sesuaikan path folder penyimpanan
+    if (!File.Exists(filePath))
+    {
+        return Results.NotFound(new { message = "File not found." });
+    }
+
+    var contentType = SupportReportAPI.Helpers.FileHelper.GetContentType(filePath);
+    return Results.File(await File.ReadAllBytesAsync(filePath), contentType, fileName);
+});
+
+// Create a new SupportTable
+app.MapPost("/supporttables", async (HttpContext context, AppDbContext db) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var name = form["name"].ToString();
+    var file = form.Files["file"];
+
+    if (string.IsNullOrEmpty(name) || file == null)
+    {
+        return Results.BadRequest("Name and file are required.");
+    }
+
+    var fileName = $"{Guid.NewGuid()}_{file.FileName}";
+    var filePath = Path.Combine("uploads", fileName);
+
+    using (var stream = new FileStream(filePath, FileMode.Create))
+    {
+        await file.CopyToAsync(stream);
+    }
+
+    var supportTable = new SupportTable
+    {
+        Name = name,
+        FilePath = fileName
+    };
+
+    db.SupportTables.Add(supportTable);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/supporttables/{supportTable.Id}", supportTable);
+});
+
+
+// Update a SupportTable by ID
+app.MapPut("/supporttables/{id}", async (int id, SupportTable supportTable, AppDbContext db) =>
+{
+    if (id != supportTable.Id)
+    {
+        return Results.BadRequest(new { message = "ID mismatch." });
+    }
+
+    var existingSupport = await db.SupportTables.FindAsync(id);
+    if (existingSupport is null) return Results.NotFound("Support Table not found.");
+
+    existingSupport.Name = supportTable.Name;
+
+    await db.SaveChangesAsync();
+    return Results.Ok(existingSupport);
+});
+
+// Delete a SupportTable by ID
+app.MapDelete("/supporttables/{id:int}", async (AppDbContext db, int id) =>
+{
+    var supportTable = await db.SupportTables.FindAsync(id);
+    if (supportTable is null) return Results.NotFound("SupportTable not found.");
+
+    // Hapus file jika ada
+    if (!string.IsNullOrEmpty(supportTable.FilePath))
+    {
+        var fullPath = Path.Combine(uploadDirectory, supportTable.FilePath);
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
+        }
+    }
+
+    db.SupportTables.Remove(supportTable);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
+// Upload File untuk SupportTable
+app.MapPost("/supporttables/{id:int}/upload", async (int id, HttpContext context, AppDbContext db) =>
+{
+    var supportTable = await db.SupportTables.FindAsync(id);
+    if (supportTable == null) return Results.NotFound("SupportTable not found.");
+
+    var file = context.Request.Form.Files.FirstOrDefault();
+    if (file == null) return Results.BadRequest("No file uploaded.");
+
+    var fileName = $"{Guid.NewGuid()}_{file.FileName}";
+    var filePath = Path.Combine(uploadDirectory, fileName);
+
+    using (var stream = new FileStream(filePath, FileMode.Create))
+    {
+        await file.CopyToAsync(stream);
+    }
+
+    supportTable.FilePath = fileName;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { Message = "File uploaded successfully", FilePath = fileName });
+});
+
+// Download File untuk SupportTable
+app.MapGet("/supporttables/{id:int}/download", async (int id, AppDbContext db) =>
+{
+    var supportTable = await db.SupportTables.FindAsync(id);
+    if (supportTable == null || string.IsNullOrEmpty(supportTable.FilePath))
+        return Results.NotFound("File not found.");
+
+    var filePath = Path.Combine("uploads", supportTable.FilePath);
+    if (!File.Exists(filePath))
+        return Results.NotFound("File not found.");
+
+    return Results.File(await File.ReadAllBytesAsync(filePath), FileHelper.GetContentType(filePath), supportTable.FilePath);
+});
+
+// // Fungsi untuk mendapatkan Content-Type berdasarkan ekstensi file
+// string GetContentType(string filePath)
+// {
+//     var ext = Path.GetExtension(filePath).ToLowerInvariant();
+//     return ext switch
+//     {
+//         ".txt" => "text/plain",
+//         ".pdf" => "application/pdf",
+//         ".jpg" => "image/jpeg",
+//         ".png" => "image/png",
+//         ".zip" => "application/zip",
+//         ".doc" => "application/msword",
+//         ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+//         ".xls" => "application/vnd.ms-excel",
+//         ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+//         _ => "application/octet-stream",
+//     };
+// });
 
 
 
@@ -1474,8 +1581,9 @@ namespace SupportReportAPI.Models
         public int? ExtInquiryId { get; set; }
         public int? ExtPanelCodeId { get; set; }
         public int? ExtPurchaseOrderId { get; set; }
-
-
+        
+        [JsonPropertyName("selectedSupportDocId")]
+        public int? SupportTableId { get; set; } 
     }
     public class Task : BaseModel
     {
@@ -1555,8 +1663,18 @@ namespace SupportReportAPI.Models
         public string? Model { get; set; }
         public int? InquiryId { get; set; }
         public string? Content { get; set; }
-
     }
+
+public class SupportTable : BaseModel
+{
+    [Key]
+    public int Id { get; set; }
+
+    [Required]
+    public string Name { get; set; }
+
+    public string? FilePath { get; set; } // Path untuk menyimpan file
+}
 
 
     public class AppDbContext : DbContext
@@ -1582,6 +1700,7 @@ namespace SupportReportAPI.Models
         public DbSet<PanelProcess> PanelProcesses { get; set; }
         public DbSet<InquiryAIGeneration> InquiryAIGenerations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<SupportTable> SupportTables { get; set; }
 
 
 
@@ -1818,5 +1937,5 @@ public class ActivityDto
     public int? ExtJobId { get; set; }
 
     public int? ExtPanelCodeId { get; set; }
-
+    public int? SupportTableId { get; set; } 
 }

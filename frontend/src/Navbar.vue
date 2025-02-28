@@ -70,6 +70,13 @@
       ></v-list-item>
 
       <v-list-item
+        href="/#/supportDoc"
+        prepend-icon="mdi-file-document"
+        title="Support Table"
+        value="supporttable"
+      ></v-list-item>
+
+      <v-list-item
           prepend-icon="mdi-file-document"
           href="/#/engineerTimeProcess"
           title="Engineer Time Procces"
