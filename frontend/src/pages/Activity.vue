@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed ,watch , onMounted} from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import axios from "axios";
 // import { ref } from "vue";
 import {
@@ -15,9 +15,9 @@ import {
 } from "./fetchers";
 import { intlFormat, makeDateString } from "../helpers";
 import chroma from "chroma-js";
-import { ctx } from "../main";  // Mengimpor ctx untuk mendapatkan role pengguna
+import { ctx } from "../main"; // Mengimpor ctx untuk mendapatkan role pengguna
 import { useNotificationStore } from "./notificationStore";
-import { v4 as uuidv4 } from 'uuid'; // Tambahkan UUID untuk id unik
+import { v4 as uuidv4 } from "uuid"; // Tambahkan UUID untuk id unik
 import { useRoute } from "vue-router";
 
 const activityTypes = ref(["PrePO", "PostPO", "Others"]); // Pilihan PO Type
@@ -38,17 +38,19 @@ const filteredUsers = ref([]); // Daftar users yang difilter
 const route = useRoute();
 const taskId = route.query.taskId;
 
+const selectedFilterUser = ref(null);
+
 const taskDialog = ref(false); // Mengontrol dialog
 const selectedTask = ref(null); // Menyimpan data task yang dipilih
-const notificationStore = useNotificationStore(); 
+const notificationStore = useNotificationStore();
 const showOtherDialog = ref(false);
-const otherActivity = ref({ name: '', file: null });
+const otherActivity = ref({ name: "", file: null });
 
 const saveOtherActivity = async () => {
   try {
     let formData = new FormData();
-    formData.append('name', otherActivity.value.name);
-    formData.append('file', otherActivity.value.file);
+    formData.append("name", otherActivity.value.name);
+    formData.append("file", otherActivity.value.file);
 
     const response = await axios.post(
       `${import.meta.env.VITE_APP_BASE_URL}/supporttables`,
@@ -57,7 +59,7 @@ const saveOtherActivity = async () => {
 
     if (response.status === 201) {
       form.value.selectedSupportDocId = response.data.id;
-      form.value.type = 'Others';
+      form.value.type = "Others";
       showOtherDialog.value = false;
       fetchSupportTables(); // Refresh daftar Support Tables
     }
@@ -77,25 +79,31 @@ const fetchUsersData = async () => {
 };
 const fetchSupportTables = async () => {
   try {
-    const response = await axios.get(`${import.meta.env.VITE_APP_BASE_URL}/supporttables`);
+    const response = await axios.get(
+      `${import.meta.env.VITE_APP_BASE_URL}/supporttables`
+    );
     supportTables.value = response.data;
   } catch (error) {
     console.error("Error fetching support tables:", error);
   }
 };
 onMounted(async () => {
-  await fetchSupportTables(); 
+  await fetchSupportTables();
 });
 
 const fetchUsersAndDepartments = async () => {
   try {
     // Fetch daftar departemen
-    const deptResponse = await fetch("https://meeting-backend.iotech.my.id/ext-departments");
+    const deptResponse = await fetch(
+      "https://meeting-backend.iotech.my.id/ext-departments"
+    );
     const deptData = await deptResponse.json();
     departments.value = [{ id: null, name: "All Departments" }, ...deptData];
 
     // Fetch daftar user
-    const userResponse = await fetch("https://meeting-backend.iotech.my.id/ext-users");
+    const userResponse = await fetch(
+      "https://meeting-backend.iotech.my.id/ext-users"
+    );
     const userData = await userResponse.json();
 
     // Simpan user dalam map { extUserId: departmentName }
@@ -103,24 +111,22 @@ const fetchUsersAndDepartments = async () => {
       map[user.id] = user.departmentName;
       return map;
     }, {});
-
   } catch (error) {
     console.error("Error fetching users and departments:", error);
   }
 };
-watch(selectedDepartment, () => {
+watch([selectedDepartment, selectedFilterUser], () => {
   filterActivities();
 });
-
 // const filterActivities = () => {
 //   if (!selectedDepartment.value || selectedDepartment.value === "All Departments") {
 //     filteredActivities.value = activities.value; // Tampilkan semua jika tidak ada filter
 //     return;
 //   }
 
-//   filteredActivities.value = activities.value.filter(activity => 
-//     activity.tasks.some(task => 
-//       task.inCharges.some(inCharge => 
+//   filteredActivities.value = activities.value.filter(activity =>
+//     activity.tasks.some(task =>
+//       task.inCharges.some(inCharge =>
 //         usersMap.value[inCharge.extUserId] === selectedDepartment.value
 //       )
 //     )
@@ -128,24 +134,41 @@ watch(selectedDepartment, () => {
 // };
 
 const filterActivities = () => {
-  if (!selectedDepartment.value || selectedDepartment.value === "All Departments") {
+  if (
+    !selectedDepartment.value ||
+    selectedDepartment.value === "All Departments"
+  ) {
     filteredActivities.value = activities.value; // Jika tidak dipilih, tampilkan semua
     return;
   }
 
-  filteredActivities.value = activities.value.filter(activity =>
-    activity.tasks.some(task =>
-      task.inCharges.some(inCharge =>
-        usersMap.value[inCharge.extUserId] === selectedDepartment.value // Bandingkan dengan department.name
-      )
-    )
-  );
-};
+  console.log(selectedFilterUser);
 
+  if (selectedFilterUser.value) {
+    filteredActivities.value = activities.value.filter((activity) =>
+      activity.tasks.find((t) =>
+        t.inCharges?.find(
+          (c) => `${c?.extUserId}` === `${selectedFilterUser.value}`
+        )
+      )
+    );
+  } else if (selectedDepartment.value) {
+    filteredActivities.value = activities.value.filter((activity) =>
+      activity.tasks.some((task) =>
+        task.inCharges.some(
+          (inCharge) =>
+            usersMap.value[inCharge.extUserId] === selectedDepartment.value // Bandingkan dengan department.name
+        )
+      )
+    );
+  }
+};
 
 const fetchCustomers = async () => {
   try {
-    const response = await fetch("https://crm-local.iotech.my.id/api/external/customers");
+    const response = await fetch(
+      "https://crm-local.iotech.my.id/api/external/customers"
+    );
     if (!response.ok) {
       throw new Error(`Failed to fetch customers: ${response.statusText}`);
     }
@@ -173,24 +196,26 @@ const formatDate = (date) => {
 // Metode untuk mengambil engineeringActivityId berdasarkan taskId
 const getEngineeringActivityIdByTaskId = (taskId) => {
   for (const activity of activities.value) {
-    if (activity.tasks.some(task => task.id === taskId)) {
+    if (activity.tasks.some((task) => task.id === taskId)) {
       return activity.id; // Kembalikan ID dari engineering activity
     }
   }
-  console.warn(`Engineering activity dengan task ID ${taskId} tidak ditemukan.`);
+  console.warn(
+    `Engineering activity dengan task ID ${taskId} tidak ditemukan.`
+  );
   return null; // Kembalikan null jika tidak ditemukan
-}
+};
 
 // Ambil data role dari `ctx` dan `localStorage`
 const userRoles = computed(() => {
   const ctxRole = ctx?.userRole ? [ctx.userRole] : [];
-  const localStorageRole = localStorage.getItem("userRole") ? [localStorage.getItem("userRole")] : [];
+  const localStorageRole = localStorage.getItem("userRole")
+    ? [localStorage.getItem("userRole")]
+    : [];
   return [...new Set([...ctxRole, ...localStorageRole])];
 });
 
-
-const userRole = ref(localStorage.getItem('userRole') || ctx.userRole);
-
+const userRole = ref(localStorage.getItem("userRole") || ctx.userRole);
 
 // onMounted(async () => {
 //   await fetchEngineeringActivitiesData();
@@ -210,7 +235,9 @@ watch(selectedDepartment, () => {
 const undoDone = async (task, role) => {
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/undo-done?taskId=${task.id}&role=${role}`,
+      `${
+        import.meta.env.VITE_APP_BASE_URL
+      }/api/notifications/undo-done?taskId=${task.id}&role=${role}`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -218,7 +245,9 @@ const undoDone = async (task, role) => {
     );
 
     if (response.ok) {
-      console.log(`Undo done untuk task ID ${task.id} oleh role ${role} berhasil.`);
+      console.log(
+        `Undo done untuk task ID ${task.id} oleh role ${role} berhasil.`
+      );
       loadNotifications();
     } else {
       console.error("Gagal melakukan undo done:", response.status);
@@ -236,7 +265,6 @@ const fetchDepartmentsData = async () => {
   departments.value = [{ id: null, name: "All Departments" }, ...d];
 };
 
-
 const selectedActivity = ref(null);
 const woTemplates = ref(null);
 const pos = ref([]);
@@ -252,9 +280,23 @@ const defaultForm = {
 const form = ref({ ...defaultForm });
 
 const displayedActivities = computed(() => {
-  return selectedDepartment.value ? filteredActivities.value : activities.value;
-});
+  let fa =
+    selectedDepartment.value || selectedFilterUser.value
+      ? filteredActivities.value
+      : activities.value;
 
+  if (selectedFilterUser.value) {
+    fa = fa.filter((a) =>
+      a?.tasks?.find((t) =>
+        t?.inCharges?.find(
+          (c) => `${c?.extUserId}` === `${selectedFilterUser.value}`
+        )
+      )
+    );
+  }
+
+  return fa;
+});
 
 // Function untuk memuat data dari API
 const startupById = async (taskId) => {
@@ -263,9 +305,13 @@ const startupById = async (taskId) => {
       dialog.value = true;
 
       // Lakukan fetch data dari API
-      const response = await fetch(`http://localhost:5172/api/dashboard/activities/task/${taskId}?withUserNames=true`);
+      const response = await fetch(
+        `http://localhost:5172/api/dashboard/activities/task/${taskId}?withUserNames=true`
+      );
       if (!response.ok) {
-        throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch data: ${response.status} ${response.statusText}`
+        );
       }
 
       // Parsing hasil JSON dari API
@@ -275,7 +321,7 @@ const startupById = async (taskId) => {
       form.value = fetched[0]; // Pastikan mengambil elemen pertama
       console.log("Form data:", form.value); // Debugging untuk memastikan data
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error("Error fetching data:", error);
     } finally {
       dialog.value = true;
     }
@@ -295,15 +341,14 @@ onMounted(async () => {
 });
 
 // Watch perubahan pada taskId untuk menjaga dialog tetap terbuka
-watch(() => taskId, async (newTaskId) => {
-  if (newTaskId) {
-    await startupById(newTaskId);
+watch(
+  () => taskId,
+  async (newTaskId) => {
+    if (newTaskId) {
+      await startupById(newTaskId);
+    }
   }
-});
-
-
-const selectedFilterUser = ref(null);
-
+);
 
 const loadNotifications = async () => {
   if (!userRole.value) {
@@ -313,7 +358,9 @@ const loadNotifications = async () => {
 
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/active?role=${userRole.value}`
+      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/active?role=${
+        userRole.value
+      }`
     );
     if (response.ok) {
       const data = await response.json();
@@ -340,7 +387,6 @@ async function loadTaskById(taskId) {
     console.error("Error loading task:", error);
   }
 }
-
 
 const requiredRule = [(v) => !!v || "Required."];
 
@@ -394,11 +440,12 @@ const fetchWoTemplatesData = async () => {
   woTemplates.value = d;
 };
 
-
 const handleDone = async (task, role) => {
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/done?taskId=${task.id}&role=${role}`,
+      `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/done?taskId=${
+        task.id
+      }&role=${role}`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -417,9 +464,6 @@ const handleDone = async (task, role) => {
     console.error("Error saat memperbarui status task:", error);
   }
 };
-
-
-
 
 // const handleDone = async (task, role) => {
 //   try {
@@ -505,17 +549,20 @@ const handleSave = async () => {
       // Kirim notifikasi ke backend untuk setiap task baru
       await Promise.all(
         updatedForm.tasks.map(async (task) => {
-          await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/notifications`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: `Task Baru: ${task.description}`,
-              message: `Task dengan ID ${task.id} telah dibuat.`,
-              role: "pic", // Awal untuk PIC
-              taskId: task.id,
-              createdAt: new Date().toISOString(),
-            }),
-          });
+          await fetch(
+            `${import.meta.env.VITE_APP_BASE_URL}/api/notifications`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: `Task Baru: ${task.description}`,
+                message: `Task dengan ID ${task.id} telah dibuat.`,
+                role: "pic", // Awal untuk PIC
+                taskId: task.id,
+                createdAt: new Date().toISOString(),
+              }),
+            }
+          );
         })
       );
 
@@ -612,8 +659,6 @@ onMounted(() => {
 //   }
 // };
 
-
-
 fetchUsersData();
 fetchEngineeringActivitiesData();
 fetchDepartmentsData();
@@ -635,93 +680,110 @@ const alertx = (content) => {
     </div>
     <div><hr class="border border-dark" /></div>
 
-
     <v-container class="px-4 py-2">
-    <v-row class="align-center">
-      <!-- Bagian Kiri: Input Tanggal & Filter -->
-      <v-col cols="12" sm="8" class="d-flex align-center">
-        <!-- Input "From" Date -->
-        <v-text-field
-          label="From"
-          type="date"
-          v-model="from"
-          density="compact"
-          variant="outlined"
-          hide-details
-          class="input-field mr-2"
-          @blur="fetchEngineeringActivitiesData"
-        ></v-text-field>
+      <v-row class="align-center">
+        <!-- Bagian Kiri: Input Tanggal & Filter -->
+        <v-col cols="12" sm="8" class="d-flex align-center">
+          <!-- Input "From" Date -->
+          <v-text-field
+            label="From"
+            type="date"
+            v-model="from"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="input-field mr-2"
+            @blur="fetchEngineeringActivitiesData"
+          ></v-text-field>
 
-        <!-- Input "To" Date -->
-        <v-text-field
-          label="To"
-          type="date"
-          v-model="to"
-          density="compact"
-          variant="outlined"
-          hide-details
-          class="input-field mr-2"
-          @blur="fetchEngineeringActivitiesData"
-        ></v-text-field>
+          <!-- Input "To" Date -->
+          <v-text-field
+            label="To"
+            type="date"
+            v-model="to"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="input-field mr-2"
+            @blur="fetchEngineeringActivitiesData"
+          ></v-text-field>
 
-        <!-- Filter User -->
-        <v-autocomplete
-          label="Filter by User"
-          :items="users.map(user => ({
-            label: `${user?.name} (${departments.find(d => `${d?.id}` === `${user?.departmentId}`)?.name || 'Unknown'})`,
-            value: user.id // Gunakan ID agar tidak muncul {object}
-          }))"
-          item-title="label" 
-          density="compact"
-          variant="outlined"
-          v-model="selectedFilterUser"
-          hide-details
-          clearable
-          class="input-field mr-2"
-          @update:model-value="fetchEngineeringActivitiesData"
-        ></v-autocomplete>
+          <!-- Filter User -->
+          <v-autocomplete
+            label="Filter by User"
+            :items="
+              users.map((user) => ({
+                label: `${user?.name} (${
+                  departments.find(
+                    (d) => `${d?.id}` === `${user?.departmentId}`
+                  )?.name || 'Unknown'
+                })`,
+                value: user.id, // Gunakan ID agar tidak muncul {object}
+              }))
+            "
+            item-title="label"
+            density="compact"
+            variant="outlined"
+            v-model="selectedFilterUser"
+            hide-details
+            clearable
+            class="input-field mr-2"
+            @update:model-value="fetchEngineeringActivitiesData"
+          ></v-autocomplete>
 
-        <!-- Filter Department -->
-        <v-autocomplete
-          label="Filter by Department"
-          :items="departments.map(department => ({
-            label: department.name,
-            value: department.name // Gunakan nama kembali agar filtering berjalan
-          }))"
-          item-title="label"
-          density="compact"
-          variant="outlined"
-          v-model="selectedDepartment"
-          hide-details
-          clearable
-          class="input-field mr-2"
-          @update:model-value="filterActivities" 
-        ></v-autocomplete>
+          <!-- Filter Department -->
+          <v-autocomplete
+            label="Filter by Department"
+            :items="
+              departments.map((department) => ({
+                label: department.name,
+                value: department.name, // Gunakan nama kembali agar filtering berjalan
+              }))
+            "
+            item-title="label"
+            density="compact"
+            variant="outlined"
+            v-model="selectedDepartment"
+            hide-details
+            clearable
+            class="input-field mr-2"
+            @update:model-value="filterActivities"
+          ></v-autocomplete>
+        </v-col>
 
-      </v-col>
-
-      <!-- Bagian Kanan: Tombol -->
-      <v-col cols="12" sm="4" class="d-flex justify-end">
-        <v-btn color="primary" variant="elevated" size="small" class="btn-custom mr-2" @click="dialog = true">
-          <v-icon left>mdi-plus</v-icon> Add
-        </v-btn>
-
-        <a
-          :href="`${getEngineeringActivitiesUrl({
-            from: new Date(`${from}T00:00:00`).toISOString(),
-            to: new Date(`${to}T23:59:39`).toISOString(),
-            excel: true,
-            withUserNames: true,
-          })}`"
-          class="text-decoration-none"
-        >
-          <v-btn color="success" variant="elevated" size="small" class="btn-custom">
-            <v-icon left>mdi-download</v-icon> Download
+        <!-- Bagian Kanan: Tombol -->
+        <v-col cols="12" sm="4" class="d-flex justify-end">
+          <v-btn
+            color="primary"
+            variant="elevated"
+            size="small"
+            class="btn-custom mr-2"
+            @click="dialog = true"
+          >
+            <v-icon left>mdi-plus</v-icon> Add
           </v-btn>
-        </a>
-      </v-col>
-    </v-row>
-  </v-container>
+
+          <a
+            :href="`${getEngineeringActivitiesUrl({
+              from: new Date(`${from}T00:00:00`).toISOString(),
+              to: new Date(`${to}T23:59:39`).toISOString(),
+              excel: true,
+              withUserNames: true,
+            })}`"
+            class="text-decoration-none"
+          >
+            <v-btn
+              color="success"
+              variant="elevated"
+              size="small"
+              class="btn-custom"
+            >
+              <v-icon left>mdi-download</v-icon> Download
+            </v-btn>
+          </a>
+        </v-col>
+      </v-row>
+    </v-container>
 
     <div
       class="overflow-auto border border-dark"
@@ -729,229 +791,241 @@ const alertx = (content) => {
     >
       <table class="table table-sm" style="border-collapse: separate">
         <thead>
-          
-       
-        <tr>
-          <th
-            style="position: sticky; top: 0"
-            class="bg-dark text-light p-0 m-0"
-            v-for="(h, i) in [
-              '#',
-              'Type',
-              'Inquiry',
-              'Job',
-              'Customer', 
-              'From',
-              'To',
-              'PIC Depts',
-              'Tasks',
-              'Tasks Done',
-              'TotalHrs',
-              'Action',
-            ]"
-          >
-            {{ h }}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-
-     
-        <tr v-for="(a, i) in displayedActivities">
-          <template
-            v-for="d in [
-              { filteredTasks: a?.tasks?.filter((t) => !t?.deletedAt) },
-            ]"
-          >
-            <td class="border border-dark p-0 m-0">{{ i + 1 }}</td>
-            <td class="border border-dark p-0 m-0">{{ a?.type }}</td>
-            <td class="border border-dark p-0 m-0">
-              <template
-                v-for="d in [
-                  {
-                    foundInquiry: inquiries?.find(
-                      (t) => `${t?.id}` === `${a?.extInquiryId}`
-                    ),
-                  },
-                ]"
-                >{{ d?.foundInquiry?.inquiryNumber }} -
-                {{ d?.foundInquiry?.account?.name ||'Belum Memilih'}}</template
-              >
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{
-                jobs?.jobs?.find(
-                  (j) => `${j?.masterJavaBaseModel?.id}` === `${a?.extJobId}`
-                )?.name|| 'Belum Memilih'
-              }}
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{ a?.customer || 'Belum Memilih' }} <!-- Tampilkan nama customer -->
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{
-                intlFormat({
-                  date: a?.fromCache?.split("T")?.[0],
-                  dateStyle: "medium",
-                })
-              }}
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{
-                intlFormat({
-                  date: a?.toCache?.split("T")?.[0],
-                  dateStyle: "medium",
-                })
-              }}
-            </td>
-            <td class="border border-dark p-0 m-0">
-              <div>
-                <ul>
-                  <li
-                    v-for="u in [
-                      ...new Set(
-                        d.filteredTasks
-                          ?.flatMap((t) => t?.inCharges)
-                          ?.filter((ic) => !ic?.deletedAt)
-                          ?.map((ic) => ic?.extUserId)
-                          ?.filter((ui) => ui)
+          <tr>
+            <th
+              style="position: sticky; top: 0"
+              class="bg-dark text-light p-0 m-0"
+              v-for="(h, i) in [
+                '#',
+                'Type',
+                'Inquiry',
+                'Job',
+                'Customer',
+                'From',
+                'To',
+                'PIC Depts',
+                'Tasks',
+                'Tasks Done',
+                'TotalHrs',
+                'Action',
+              ]"
+            >
+              {{ h }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(a, i) in displayedActivities">
+            <template
+              v-for="d in [
+                { filteredTasks: a?.tasks?.filter((t) => !t?.deletedAt) },
+              ]"
+            >
+              <td class="border border-dark p-0 m-0">{{ i + 1 }}</td>
+              <td class="border border-dark p-0 m-0">{{ a?.type }}</td>
+              <td class="border border-dark p-0 m-0">
+                <template
+                  v-for="d in [
+                    {
+                      foundInquiry: inquiries?.find(
+                        (t) => `${t?.id}` === `${a?.extInquiryId}`
                       ),
-                    ]"
-                  >
-                    <template
-                      v-for="d in [
-                        { user: users.find((ux) => `${ux?.id}` === `${u}`) },
+                    },
+                  ]"
+                  >{{ d?.foundInquiry?.inquiryNumber }} -
+                  {{
+                    d?.foundInquiry?.account?.name || "Belum Memilih"
+                  }}</template
+                >
+              </td>
+              <td class="border border-dark p-0 m-0">
+                {{
+                  jobs?.jobs?.find(
+                    (j) => `${j?.masterJavaBaseModel?.id}` === `${a?.extJobId}`
+                  )?.name || "Belum Memilih"
+                }}
+              </td>
+              <td class="border border-dark p-0 m-0">
+                {{ a?.customer || "Belum Memilih" }}
+                <!-- Tampilkan nama customer -->
+              </td>
+              <td class="border border-dark p-0 m-0">
+                {{
+                  intlFormat({
+                    date: a?.fromCache?.split("T")?.[0],
+                    dateStyle: "medium",
+                  })
+                }}
+              </td>
+              <td class="border border-dark p-0 m-0">
+                {{
+                  intlFormat({
+                    date: a?.toCache?.split("T")?.[0],
+                    dateStyle: "medium",
+                  })
+                }}
+              </td>
+              <td class="border border-dark p-0 m-0">
+                <div>
+                  <ul>
+                    <li
+                      v-for="u in [
+                        ...new Set(
+                          d.filteredTasks
+                            ?.flatMap((t) => t?.inCharges)
+                            ?.filter((ic) => !ic?.deletedAt)
+                            ?.map((ic) => ic?.extUserId)
+                            ?.filter((ui) => ui)
+                        ),
                       ]"
                     >
-                      {{ d?.user?.name }}
-                      ({{
-                        departments?.find(
-                          (dx) => `${dx?.id}` === `${d?.user?.departmentId}`
-                        )?.name
-                      }})</template
-                    >
-                  </li>
-                </ul>
-              </div>
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{ d.filteredTasks?.filter((t) => !t?.deletedAt)?.length ?? 0 }}
-            </td>
-            <td class="border border-dark p-0 m-0">
-  <div
-    :style="`background-color: ${(() => {
-      const totalTasks = d.filteredTasks?.length ?? 0;
-      const doneTasks = d.filteredTasks?.filter((t) => 
-        t?.completedDatePic || t?.completedDateSpv || t?.completedDateManager
-      )?.length ?? 0;
+                      <template
+                        v-for="d in [
+                          { user: users.find((ux) => `${ux?.id}` === `${u}`) },
+                        ]"
+                      >
+                        {{ d?.user?.name }}
+                        ({{
+                          departments?.find(
+                            (dx) => `${dx?.id}` === `${d?.user?.departmentId}`
+                          )?.name
+                        }})</template
+                      >
+                    </li>
+                  </ul>
+                </div>
+              </td>
+              <td class="border border-dark p-0 m-0">
+                {{ d.filteredTasks?.filter((t) => !t?.deletedAt)?.length ?? 0 }}
+              </td>
+              <td class="border border-dark p-0 m-0">
+                <div
+                  :style="`background-color: ${(() => {
+                    const totalTasks = d.filteredTasks?.length ?? 0;
+                    const doneTasks =
+                      d.filteredTasks?.filter(
+                        (t) =>
+                          t?.completedDatePic ||
+                          t?.completedDateSpv ||
+                          t?.completedDateManager
+                      )?.length ?? 0;
 
-      if (doneTasks === 0) {
-        // Tidak ada yang done, warna merah
-        return 'red';
-      } else if (d.filteredTasks?.every((t) => 
-        t?.completedDatePic && t?.completedDateSpv && t?.completedDateManager
-      )) {
-        // Semua sudah selesai, warna hijau
-        return 'green';
-      } else {
-        // Sebagian sudah selesai, warna kuning
-        return 'yellow';
-      }
-    })()}`"
-  >
-    <strong>
-      {{
-        d.filteredTasks?.filter((t) => 
-          t?.completedDatePic && t?.completedDateSpv && t?.completedDateManager
-        )?.length ?? 0
-      }}
-      /
-      {{ d.filteredTasks?.length ?? 0 }}
-    </strong>
-  </div>
-</td>
-
-
-            <td class="border border-dark p-0 m-0">
-              {{
-                d.filteredTasks?.reduce(
-                  (acc, t) => acc + (t?.hours ?? 0),
-                  0.0
-                ) ?? 0
-              }}
-            </td>
-
-            <td class="border border-dark p-0 m-0">
-              <div>
-                <button
-                  class="btn btn-sm btn-primary px-1 py-0"
-                  @click="
-                    async () => {
-                      form = a;
-                      dialog = true;
+                    if (doneTasks === 0) {
+                      // Tidak ada yang done, warna merah
+                      return 'red';
+                    } else if (
+                      d.filteredTasks?.every(
+                        (t) =>
+                          t?.completedDatePic &&
+                          t?.completedDateSpv &&
+                          t?.completedDateManager
+                      )
+                    ) {
+                      // Semua sudah selesai, warna hijau
+                      return 'green';
+                    } else {
+                      // Sebagian sudah selesai, warna kuning
+                      return 'yellow';
                     }
-                  "
+                  })()}`"
                 >
-                  <v-icon icon="mdi-pencil" /> Edit
-                </button>
-              </div>
-            </td>
-          </template>
-        </tr>
-      </tbody>
+                  <strong>
+                    {{
+                      d.filteredTasks?.filter(
+                        (t) =>
+                          t?.completedDatePic &&
+                          t?.completedDateSpv &&
+                          t?.completedDateManager
+                      )?.length ?? 0
+                    }}
+                    /
+                    {{ d.filteredTasks?.length ?? 0 }}
+                  </strong>
+                </div>
+              </td>
+
+              <td class="border border-dark p-0 m-0">
+                {{
+                  d.filteredTasks?.reduce(
+                    (acc, t) => acc + (t?.hours ?? 0),
+                    0.0
+                  ) ?? 0
+                }}
+              </td>
+
+              <td class="border border-dark p-0 m-0">
+                <div>
+                  <button
+                    class="btn btn-sm btn-primary px-1 py-0"
+                    @click="
+                      async () => {
+                        form = a;
+                        dialog = true;
+                      }
+                    "
+                  >
+                    <v-icon icon="mdi-pencil" /> Edit
+                  </button>
+                </div>
+              </td>
+            </template>
+          </tr>
+        </tbody>
       </table>
     </div>
   </div>
 
   <!-- WO dialog -->
   <keep-alive>
-  <div class="text-center pa-4">
-    <v-dialog :key="taskId" v-model="dialog" fullscreen>
-      <v-card
-        max-width="400"
-        prepend-icon="mdi-run"
-        title="Create/Edit Activity"
-      >
-        <template v-slot:actions> </template>
+    <div class="text-center pa-4">
+      <v-dialog :key="taskId" v-model="dialog" fullscreen>
+        <v-card
+          max-width="400"
+          prepend-icon="mdi-run"
+          title="Create/Edit Activity"
+        >
+          <template v-slot:actions> </template>
 
-        <div class="m-3">
-          <!-- <v-container> -->
-          <div class="w-100">
-            <div class="d-flex">
-              <div class="mx-2">
-                <button class="btn btn-sm btn-primary" @click="() => handleSave()">
-  <v-icon icon="mdi-content-save" /> Save
-</button>
-
-              </div>
-              <div class="mx-2">
-                <button class="btn btn-sm btn-danger" @click="dialog = false">
-                  <v-icon icon="mdi-close" /> Close
-                </button>
+          <div class="m-3">
+            <!-- <v-container> -->
+            <div class="w-100">
+              <div class="d-flex">
+                <div class="mx-2">
+                  <button
+                    class="btn btn-sm btn-primary"
+                    @click="() => handleSave()"
+                  >
+                    <v-icon icon="mdi-content-save" /> Save
+                  </button>
+                </div>
+                <div class="mx-2">
+                  <button class="btn btn-sm btn-danger" @click="dialog = false">
+                    <v-icon icon="mdi-close" /> Close
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="my-3">
-            <strong>Activity Description</strong>
-            <input
-              placeholder="Description..."
-              class="form-control form-control-sm"
-              v-model="form.description"
-            />
-            <strong>PO Type</strong>
+            <div class="my-3">
+              <strong>Activity Description</strong>
+              <input
+                placeholder="Description..."
+                class="form-control form-control-sm"
+                v-model="form.description"
+              />
+              <strong>PO Type</strong>
 
-            <v-autocomplete
-  :items="activityTypes.map((t) => ({ label: t, value: t }))"
-  :item-title="(t) => t?.label"
-  :modelValue="form?.type"
-  @update:modelValue="
-    (a) => {
-      form.type = a;
-    }
-  "
-></v-autocomplete>
+              <v-autocomplete
+                :items="activityTypes.map((t) => ({ label: t, value: t }))"
+                :item-title="(t) => t?.label"
+                :modelValue="form?.type"
+                @update:modelValue="
+                  (a) => {
+                    form.type = a;
+                  }
+                "
+              ></v-autocomplete>
 
-            <!-- <div>
+              <!-- <div>
   <strong>Panel Type</strong>
   <v-autocomplete
   :items="processes.map((p) => ({ label: `${p.panelType} - ${p.processName}`, value: p }))"
@@ -964,53 +1038,61 @@ const alertx = (content) => {
 ></v-autocomplete>
 
 </div> -->
+            </div>
+            <template v-if="form.type === 'Others'">
+              <div>
+                <strong>Select Customer Name</strong>
+              </div>
+              <div>
+                <v-autocomplete
+                  :items="
+                    customers?.map((customer) => ({
+                      label: `${customer.businessType} ${customer.name}`, // Gabungkan businessType dan name
+                      value: customer, // Kirim seluruh objek customer
+                    }))
+                  "
+                  :item-title="(item) => item.label"
+                  :model-value="form.customer"
+                  @update:model-value="
+                    (selected) => {
+                      form.customer = selected; // Simpan objek customer yang dipilih
+                      form.selectedCustomerId = selected?.id; // Simpan ID customer juga
+                    }
+                  "
+                  label="Select a customer or company"
+                  outlined
+                ></v-autocomplete>
+              </div>
+            </template>
 
-          </div>
-          <template v-if="form.type === 'Others'">
-            <div>
-              <strong>Select Customer Name</strong>
-            </div>
-            <div>
-              <v-autocomplete
-                :items="customers?.map((customer) => ({
-                  label: `${customer.businessType} ${customer.name}`, // Gabungkan businessType dan name
-                  value: customer, // Kirim seluruh objek customer
-                }))"
-                :item-title="(item) => item.label"
-                :model-value="form.customer" 
-                @update:model-value="(selected) => {
-                  form.customer = selected; // Simpan objek customer yang dipilih
-                  form.selectedCustomerId = selected?.id; // Simpan ID customer juga
-                }"
-                label="Select a customer or company"
-                outlined
-              ></v-autocomplete>
-            </div>
-          </template>
-          
-          <template v-if="form.type === 'PrePO'">
-            <div>
-              <strong>Support Document</strong>
-            </div>
-            <div>     
-              <v-autocomplete
-                v-model="form.selectedSupportDocId"
-                :items="[
-                  ...supportTables.map(doc => ({ label: doc.name, value: doc.id })),
-                  // { label: 'Others', value: 'Others' }
-                ]"
-                item-title="label"
-                item-value="value"
-                label="Select Support Document"
-                outlined
-                @update:modelValue="(a) => {
-                  console.log('Selected value:', a); // Debugging
-                  if (a === 'Others') {
-                    showOtherDialog = true;
-                  }
-                }"
-              />
-              <!-- <v-autocomplete
+            <template v-if="form.type === 'PrePO'">
+              <div>
+                <strong>Support Document</strong>
+              </div>
+              <div>
+                <v-autocomplete
+                  v-model="form.selectedSupportDocId"
+                  :items="[
+                    ...supportTables.map((doc) => ({
+                      label: doc.name,
+                      value: doc.id,
+                    })),
+                    // { label: 'Others', value: 'Others' }
+                  ]"
+                  item-title="label"
+                  item-value="value"
+                  label="Select Support Document"
+                  outlined
+                  @update:modelValue="
+                    (a) => {
+                      console.log('Selected value:', a); // Debugging
+                      if (a === 'Others') {
+                        showOtherDialog = true;
+                      }
+                    }
+                  "
+                />
+                <!-- <v-autocomplete
                 v-model="form.type"
                 :items="[...activityTypes.map((t) => ({ label: t, value: t })), { label: 'Others', value: 'Others' }]"
                 item-title="label"
@@ -1023,292 +1105,304 @@ const alertx = (content) => {
                   }
                 }"
               ></v-autocomplete> -->
-            </div>
+              </div>
 
-            <!-- Modal untuk "Other" -->
-            <v-dialog v-model="showOtherDialog" max-width="500px">
-              <v-card>
-                <v-card-title>Upload Other Activity</v-card-title>
-                <v-card-text>
-                  <v-text-field v-model="otherActivity.name" label="Activity Name"></v-text-field>
-                  <v-file-input label="Upload File" v-model="otherActivity.file"></v-file-input>
-                </v-card-text>
-                <v-card-actions>
-                  <v-btn color="primary" @click="saveOtherActivity">Save</v-btn>
-                  <v-btn color="secondary" @click="showOtherDialog = false">Cancel</v-btn>
-                </v-card-actions>
-              </v-card>
-            </v-dialog>
-          </template>
+              <!-- Modal untuk "Other" -->
+              <v-dialog v-model="showOtherDialog" max-width="500px">
+                <v-card>
+                  <v-card-title>Upload Other Activity</v-card-title>
+                  <v-card-text>
+                    <v-text-field
+                      v-model="otherActivity.name"
+                      label="Activity Name"
+                    ></v-text-field>
+                    <v-file-input
+                      label="Upload File"
+                      v-model="otherActivity.file"
+                    ></v-file-input>
+                  </v-card-text>
+                  <v-card-actions>
+                    <v-btn color="primary" @click="saveOtherActivity"
+                      >Save</v-btn
+                    >
+                    <v-btn color="secondary" @click="showOtherDialog = false"
+                      >Cancel</v-btn
+                    >
+                  </v-card-actions>
+                </v-card>
+              </v-dialog>
+            </template>
 
+            <template v-if="form.type === 'PrePO'">
+              <div>
+                <strong>Inquiry</strong>
+              </div>
 
-          <template v-if="form.type === 'PrePO'">
-            <div>
-              <strong>Inquiry</strong>
-            </div>
+              <div>
+                <v-autocomplete
+                  :items="
+                    inquiries?.map((i) => ({
+                      label: `${i?.inquiryNumber} - ${i?.account?.name}`,
+                      value: i,
+                    }))
+                  "
+                  :item-title="(j) => j?.label"
+                  :modelValue="
+                    form?.extInquiryId
+                      ? inquiries?.find(
+                          (t) => `${t?.id}` === `${form?.extInquiryId}`
+                        )
+                      : null
+                  "
+                  @update:modelValue="
+                    (a) => {
+                      form.extInquiryId = a?.id;
 
-            <div>
-              <v-autocomplete
-                :items="
-                  inquiries?.map((i) => ({
-                    label: `${i?.inquiryNumber} - ${i?.account?.name}`,
-                    value: i,
-                  }))
-                "
-                :item-title="(j) => j?.label"
-                :modelValue="
-                  form?.extInquiryId
-                    ? inquiries?.find(
-                        (t) => `${t?.id}` === `${form?.extInquiryId}`
+                      // alertx(a?.id);
+                    }
+                  "
+                ></v-autocomplete>
+                <!-- {{ form?.extInquiryId }} -->
+              </div>
+            </template>
+
+            <template v-if="form.type === 'PostPO'">
+              <div>
+                <strong>Job</strong>
+              </div>
+
+              <div>
+                <!-- {{JSON.stringify(form)}} -->
+                <v-autocomplete
+                  :items="
+                    jobs?.jobs?.map((j) => ({ label: j?.name, value: j }))
+                  "
+                  :item-title="(j) => j?.label"
+                  :modelValue="
+                    jobs?.jobs?.find(
+                      (t) =>
+                        `${t?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
+                    )
+                  "
+                  @update:modelValue="
+                    (a) => {
+                      form.extJobId = isNaN(
+                        parseInt(a?.masterJavaBaseModel?.id ?? '')
                       )
-                    : null
-                "
-                @update:modelValue="
-                  (a) => {
-                    form.extInquiryId = a?.id;
+                        ? 0
+                        : parseInt(a?.masterJavaBaseModel?.id ?? '');
+                    }
+                  "
+                ></v-autocomplete>
+                <!-- {{ form?.extJobId }} -->
+              </div>
 
-                    // alertx(a?.id);
-                  }
-                "
-              ></v-autocomplete>
-              <!-- {{ form?.extInquiryId }} -->
-            </div>
-          </template>
+              <div>
+                <strong>Product</strong>
+              </div>
 
-          <template v-if="form.type === 'PostPO'">
-            <div>
-              <strong>Job</strong>
-            </div>
+              <div>
+                <!-- {{JSON.stringify(form)}} -->
+                <v-autocomplete
+                  :items="
+                    jobs?.jobs
+                      ?.find(
+                        (j) =>
+                          `${j?.masterJavaBaseModel?.id}` ===
+                          `${form?.extJobId}`
+                      )
+                      ?.panelCodes?.map((j) => ({
+                        label: `${j?.type} - ${j?.name}`,
+                        value: j,
+                      }))
+                  "
+                  :item-title="(j) => j?.label"
+                  :modelValue="
+                    jobs?.jobs
+                      ?.find(
+                        (j) =>
+                          `${j?.masterJavaBaseModel?.id}` ===
+                          `${form?.extJobId}`
+                      )
+                      ?.panelCodes?.find(
+                        (t) =>
+                          `${t?.masterJavaBaseModel?.id}` ===
+                          `${form?.extPanelCodeId}`
+                      )
+                  "
+                  @update:modelValue="
+                    (a) => {
+                      form.extPanelCodeId = isNaN(
+                        parseInt(a?.masterJavaBaseModel?.id ?? '')
+                      )
+                        ? 0
+                        : parseInt(a?.masterJavaBaseModel?.id ?? '');
+                    }
+                  "
+                ></v-autocomplete>
+                <!-- {{ form?.extJobId }} -->
+              </div>
 
-            <div>
-               <!-- {{JSON.stringify(form)}} -->
-               <v-autocomplete
-                :items="jobs?.jobs?.map((j) => ({ label: j?.name, value: j }))"
-                :item-title="(j) => j?.label"
-                :modelValue="
-                  jobs?.jobs?.find(
-                    (t) =>
-                      `${t?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                  )
-                "
-                @update:modelValue="
-                  (a) => {
-                    form.extJobId = isNaN(
-                      parseInt(a?.masterJavaBaseModel?.id ?? '')
-                    )
-                      ? 0
-                      : parseInt(a?.masterJavaBaseModel?.id ?? '');
-                  }
-                "
-              ></v-autocomplete>
-              <!-- {{ form?.extJobId }} -->
+              <div>
+                <strong>Purchase Order</strong>
+              </div>
 
-            </div>
-
-            <div>
-              <strong>Product</strong>
-            </div>
-
-            <div>
-              <!-- {{JSON.stringify(form)}} -->
               <v-autocomplete
+                placeholder="PO.."
                 :items="
-                  jobs?.jobs
-                    ?.find(
-                      (j) =>
-                        `${j?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                    )
-                    ?.panelCodes?.map((j) => ({
-                      label: `${j?.type} - ${j?.name}`,
+                  pos
+                    ?.filter((p) => {
+                      const foundJob = jobs?.jobs?.find(
+                        (t) =>
+                          `${t?.masterJavaBaseModel?.id}` ===
+                          `${form?.extJobId}`
+                      );
+
+                      return foundJob?.jobPurchaseOrders?.find(
+                        (jp) => `${jp?.extPurchaseOrderId}` === `${p?.id}`
+                      );
+                    })
+                    ?.map((j) => ({
+                      label: `${j?.purchaseOrderNumber} (${j?.account?.name})`,
                       value: j,
                     }))
                 "
                 :item-title="(j) => j?.label"
                 :modelValue="
-                  jobs?.jobs
+                  pos
+                    ?.map((j) => ({
+                      label: `${j?.purchaseOrderNumber} (${j?.account?.name})`,
+                      value: j,
+                    }))
                     ?.find(
-                      (j) =>
-                        `${j?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                    )
-                    ?.panelCodes?.find(
-                      (t) =>
-                        `${t?.masterJavaBaseModel?.id}` ===
-                        `${form?.extPanelCodeId}`
+                      (t) => `${t?.value?.id}` === `${form?.extPurchaseOrderId}`
                     )
                 "
                 @update:modelValue="
                   (a) => {
-                    form.extPanelCodeId = isNaN(
-                      parseInt(a?.masterJavaBaseModel?.id ?? '')
-                    )
+                    form.extPurchaseOrderId = isNaN(parseInt(a?.id ?? ''))
                       ? 0
-                      : parseInt(a?.masterJavaBaseModel?.id ?? '');
+                      : parseInt(a?.id ?? '');
                   }
                 "
               ></v-autocomplete>
-              <!-- {{ form?.extJobId }} -->
+            </template>
 
-            </div>
+            <!-- Tasks Table -->
+            <v-row>
+              <v-col cols="12">
+                <h5>Tasks</h5>
+                <div class="d-flex">
+                  <div>
+                    <button class="btn btn-primary" @click="() => addTask()">
+                      Add Task
+                    </button>
+                  </div>
+                  <div class="flex-grow-1">
+                    <v-autocomplete
+                      placeholder="Activity Template..."
+                      :items="
+                        woTemplates?.templates?.map((t) => ({
+                          label: t?.name,
+                          value: t,
+                        }))
+                      "
+                      :item-title="(u) => u?.label"
+                      @update:model-value="
+                        (d) => {
+                          form = { ...form, tasks: [] };
 
-            <div>
-              <strong>Purchase Order</strong>
-            </div>
-
-            <v-autocomplete
-              placeholder="PO.."
-              :items="
-                pos
-                  ?.filter((p) => {
-                    const foundJob = jobs?.jobs?.find(
-                      (t) =>
-                        `${t?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                    );
-
-                    return foundJob?.jobPurchaseOrders?.find(
-                      (jp) => `${jp?.extPurchaseOrderId}` === `${p?.id}`
-                    );
-                  })
-                  ?.map((j) => ({
-                    label: `${j?.purchaseOrderNumber} (${j?.account?.name})`,
-                    value: j,
-                  }))
-              "
-              :item-title="(j) => j?.label"
-              :modelValue="
-                pos
-                  ?.map((j) => ({
-                    label: `${j?.purchaseOrderNumber} (${j?.account?.name})`,
-                    value: j,
-                  }))
-                  ?.find(
-                    (t) => `${t?.value?.id}` === `${form?.extPurchaseOrderId}`
-                  )
-              "
-              @update:modelValue="
-                (a) => {
-                  form.extPurchaseOrderId = isNaN(parseInt(a?.id ?? ''))
-                    ? 0
-                    : parseInt(a?.id ?? '');
-                }
-              "
-            ></v-autocomplete>
-          </template>
-
-          <!-- Tasks Table -->
-          <v-row>
-            <v-col cols="12">
-              <h5>Tasks</h5>
-              <div class="d-flex">
-                <div>
-                  <button class="btn btn-primary" @click="() => addTask()">
-                    Add Task
-                  </button>
+                          form = {
+                            ...form,
+                            tasks: d?.items.map((i) => ({
+                              description: i?.name ?? '',
+                              hours: (i?.workingMins ?? 0) / 60,
+                            })),
+                          };
+                        }
+                      "
+                    ></v-autocomplete>
+                  </div>
                 </div>
-                <div class="flex-grow-1">
-                  <v-autocomplete
-                    placeholder="Activity Template..."
-                    :items="
-                      woTemplates?.templates?.map((t) => ({
-                        label: t?.name,
-                        value: t,
-                      }))
-                    "
-                    :item-title="(u) => u?.label"
-                    @update:model-value="
-                      (d) => {
-                        form = { ...form, tasks: [] };
+                <!-- {{ JSON.stringify(form) }} -->
+                <div class="border border-dark">
+                  <table
+                    class="table table-sm"
+                    style="border-collapse: separate"
+                  >
+                    <thead>
+                      <tr>
+                        <th
+                          class="bg-dark text-light"
+                          v-for="h in [
+                            '#',
+                            'Description',
+                            'From',
+                            'To',
+                            'Done PIC',
+                            'Done SPV',
 
-                        form = {
-                          ...form,
-                          tasks: d?.items.map((i) => ({
-                            description: i?.name ?? '',
-                            hours: (i?.workingMins ?? 0) / 60,
-                          })),
-                        };
-                      }
-                    "
-                  ></v-autocomplete>
-                </div>
-              </div>
-              <!-- {{ JSON.stringify(form) }} -->
-              <div class="border border-dark">
-                <table class="table table-sm" style="border-collapse: separate">
-                  <thead>
-                    <tr>
-                      <th
-                        class="bg-dark text-light"
-                        v-for="h in [
-                          '#',
-                          'Description',
-                          'From',
-                          'To',
-                          'Done PIC',
-                          'Done SPV',
+                            'Done Mgr',
 
-                          'Done Mgr',
+                            'Hours',
 
-                          'Hours',
+                            'PIC',
+                            'Remark',
 
-                          'PIC',
-                          'Remark',
-
-                          'Actions',
-                        ]"
+                            'Actions',
+                          ]"
+                        >
+                          {{ h }}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="(task, i) in form.tasks?.filter(
+                          (t) => !t?.deletedAt
+                        )"
+                        :key="i"
                       >
-                        {{ h }}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="(task, i) in form.tasks?.filter(
-                        (t) => !t?.deletedAt
-                      )"
-                      :key="i"
-                    >
-                      <td class="border border-dark">{{ i + 1 }}</td>
+                        <td class="border border-dark">{{ i + 1 }}</td>
 
-                      <td class="border border-dark">
-                        <textarea
-                          placeholder="Description..."
-                          class="form-control form-control-sm"
-                          :value="task?.description"
-                          @blur="
-                            (e) => {
-                              task.description = e.target.value;
-                            }
-                          "
-                        />
-                      </td>
-                      <td class="border border-dark">
-                        <input
-                          type="date"
-                          class="form-control form-control-sm"
-                          :value="task?.from?.split('T')?.[0]"
-                          @blur="
-                            (e) => {
-                              task.from = `${e.target.value}T00:00:00Z`;
-                            }
-                          "
-                        />
-                      </td>
-                      <td class="border border-dark">
-                        <input
-                          type="date"
-                          class="form-control form-control-sm"
-                          :value="task?.to?.split('T')?.[0]"
-                          @blur="
-                            (e) => {
-                              task.to = `${e.target.value}T00:00:00Z`;
-                            }
-                          "
-                        />
-                      </td>
-                     
-               
+                        <td class="border border-dark">
+                          <textarea
+                            placeholder="Description..."
+                            class="form-control form-control-sm"
+                            :value="task?.description"
+                            @blur="
+                              (e) => {
+                                task.description = e.target.value;
+                              }
+                            "
+                          />
+                        </td>
+                        <td class="border border-dark">
+                          <input
+                            type="date"
+                            class="form-control form-control-sm"
+                            :value="task?.from?.split('T')?.[0]"
+                            @blur="
+                              (e) => {
+                                task.from = `${e.target.value}T00:00:00Z`;
+                              }
+                            "
+                          />
+                        </td>
+                        <td class="border border-dark">
+                          <input
+                            type="date"
+                            class="form-control form-control-sm"
+                            :value="task?.to?.split('T')?.[0]"
+                            @blur="
+                              (e) => {
+                                task.to = `${e.target.value}T00:00:00Z`;
+                              }
+                            "
+                          />
+                        </td>
 
-
-<!-- <td class="border border-dark">
+                        <!-- <td class="border border-dark">
   <div v-if="!task.completedDatePic && userRoles.includes('pic')">
     <input
       type="date"
@@ -1407,257 +1501,304 @@ const alertx = (content) => {
     </button>
   </div>
 </td> -->
-<!-- PIC Section -->
-<td class="border border-dark">
-  <!-- PIC yang dipilih, manajer, atau spv bisa mengisi done -->
-  <div 
-    v-if="
-      !task.completedDatePic &&
-      (
-        task.inCharges?.some(ic => ic.extUserId === ctx?.user?.id) && userRoles.includes('pic') || 
-        userRoles.some(role => ['spv', 'manager'].includes(role))
-      )
-    "
-  >
-    <input
-      type="date"
-      class="form-control form-control-sm"
-      @blur="
-        (e) => {
-          if (!e.target.value) return;
-          task.completedDatePic = `${e.target.value}T00:00:00Z`;
-          task.completedByPicId = ctx?.user?.id;
-          handleDone(task, 'pic');
-        }
-      "
-    />
-  </div>
+                        <!-- PIC Section -->
+                        <td class="border border-dark">
+                          <!-- PIC yang dipilih, manajer, atau spv bisa mengisi done -->
+                          <div
+                            v-if="
+                              !task.completedDatePic &&
+                              ((task.inCharges?.some(
+                                (ic) => ic.extUserId === ctx?.user?.id
+                              ) &&
+                                userRoles.includes('pic')) ||
+                                userRoles.some((role) =>
+                                  ['spv', 'manager'].includes(role)
+                                ))
+                            "
+                          >
+                            <input
+                              type="date"
+                              class="form-control form-control-sm"
+                              @blur="
+                                (e) => {
+                                  if (!e.target.value) return;
+                                  task.completedDatePic = `${e.target.value}T00:00:00Z`;
+                                  task.completedByPicId = ctx?.user?.id;
+                                  handleDone(task, 'pic');
+                                }
+                              "
+                            />
+                          </div>
 
-  <div v-else-if="task.completedDatePic">
-    {{ formatDate(task.completedDatePic) }}
-    <br />
-    Done by: 
-    {{ users.find(user => user.id === task.completedByPicId)?.name }} || PIC
-    <button
-      v-if="userRoles.some(role => ['pic', 'spv', 'manager'].includes(role))"
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDatePic = null;
-          task.completedByPicId = null;
-          undoDone(task, 'pic');
-        }
-      "
-    >
-      Undo
-    </button>
-  </div>
-</td>
+                          <div v-else-if="task.completedDatePic">
+                            {{ formatDate(task.completedDatePic) }}
+                            <br />
+                            Done by:
+                            {{
+                              users.find(
+                                (user) => user.id === task.completedByPicId
+                              )?.name
+                            }}
+                            || PIC
+                            <button
+                              v-if="
+                                userRoles.some((role) =>
+                                  ['pic', 'spv', 'manager'].includes(role)
+                                )
+                              "
+                              class="btn btn-sm btn-secondary mt-2"
+                              @click="
+                                () => {
+                                  task.completedDatePic = null;
+                                  task.completedByPicId = null;
+                                  undoDone(task, 'pic');
+                                }
+                              "
+                            >
+                              Undo
+                            </button>
+                          </div>
+                        </td>
 
+                        <!-- SPV Section -->
+                        <td class="border border-dark">
+                          <!-- SPV atau manajer bisa mengisi done -->
+                          <div
+                            v-if="
+                              !task.completedDateSpv &&
+                              task.completedDatePic &&
+                              (userRoles.includes('spv') ||
+                                userRoles.includes('manager'))
+                            "
+                          >
+                            <input
+                              type="date"
+                              class="form-control form-control-sm"
+                              @blur="
+                                (e) => {
+                                  if (!e.target.value) return;
+                                  task.completedDateSpv = `${e.target.value}T00:00:00Z`;
+                                  task.completedBySpvId = ctx?.user?.id;
+                                  handleDone(task, 'spv');
+                                }
+                              "
+                            />
+                          </div>
 
-<!-- SPV Section -->
-<td class="border border-dark">
-  <!-- SPV atau manajer bisa mengisi done -->
-  <div 
-    v-if="
-      !task.completedDateSpv &&
-      task.completedDatePic &&
-      (userRoles.includes('spv') || userRoles.includes('manager'))
-    "
-  >
-    <input
-      type="date"
-      class="form-control form-control-sm"
-      @blur="
-        (e) => {
-          if (!e.target.value) return;
-          task.completedDateSpv = `${e.target.value}T00:00:00Z`;
-          task.completedBySpvId = ctx?.user?.id;
-          handleDone(task, 'spv');
-        }
-      "
-    />
-  </div>
+                          <!-- Tampilkan data jika sudah done -->
+                          <div v-else-if="task.completedDateSpv">
+                            {{ formatDate(task.completedDateSpv) }}
+                            <br />
+                            Done by:
+                            {{
+                              users.find(
+                                (user) => user.id === task.completedBySpvId
+                              )?.name
+                            }}
+                            || SPV
+                            <button
+                              v-if="
+                                userRoles.some((role) =>
+                                  ['spv', 'manager'].includes(role)
+                                )
+                              "
+                              class="btn btn-sm btn-secondary mt-2"
+                              @click="
+                                () => {
+                                  task.completedDateSpv = null;
+                                  task.completedBySpvId = null;
+                                  undoDone(task, 'spv');
+                                }
+                              "
+                            >
+                              Undo
+                            </button>
+                          </div>
+                        </td>
 
-  <!-- Tampilkan data jika sudah done -->
-  <div v-else-if="task.completedDateSpv">
-    {{ formatDate(task.completedDateSpv) }}
-    <br />
-    Done by: 
-    {{ users.find(user => user.id === task.completedBySpvId)?.name }} || SPV
-    <button
-      v-if="userRoles.some(role => ['spv', 'manager'].includes(role))"
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDateSpv = null;
-          task.completedBySpvId = null;
-          undoDone(task, 'spv');
-        }
-      "
-    >
-      Undo
-    </button>
-  </div>
-</td>
+                        <!-- Manager Section -->
+                        <td class="border border-dark">
+                          <div
+                            v-if="
+                              !task.completedDateManager &&
+                              task.completedDateSpv &&
+                              userRoles.includes('manager')
+                            "
+                          >
+                            <input
+                              type="date"
+                              class="form-control form-control-sm"
+                              @blur="
+                                (e) => {
+                                  if (!e.target.value) return;
+                                  task.completedDateManager = `${e.target.value}T00:00:00Z`;
+                                  task.completedByManagerId = ctx?.user?.id;
+                                  handleDone(task, 'manager');
+                                }
+                              "
+                            />
+                          </div>
 
+                          <div v-else-if="task.completedDateManager">
+                            {{ formatDate(task.completedDateManager) }}
+                            <br />
+                            Done by:
+                            {{
+                              users.find(
+                                (user) => user.id === task.completedByManagerId
+                              )?.name
+                            }}
+                            || Manager
+                            <button
+                              v-if="userRoles.includes('manager')"
+                              class="btn btn-sm btn-secondary mt-2"
+                              @click="
+                                () => {
+                                  task.completedDateManager = null;
+                                  task.completedByManagerId = null;
+                                  undoDone(task, 'manager');
+                                }
+                              "
+                            >
+                              Undo
+                            </button>
+                          </div>
+                        </td>
 
-<!-- Manager Section -->
-<td class="border border-dark">
-  <div 
-    v-if="
-      !task.completedDateManager &&
-      task.completedDateSpv &&
-      userRoles.includes('manager')
-    "
-  >
-    <input
-      type="date"
-      class="form-control form-control-sm"
-      @blur="
-        (e) => {
-          if (!e.target.value) return;
-          task.completedDateManager = `${e.target.value}T00:00:00Z`;
-          task.completedByManagerId = ctx?.user?.id;
-          handleDone(task, 'manager');
-        }
-      "
-    />
-  </div>
-
-  <div v-else-if="task.completedDateManager">
-    {{ formatDate(task.completedDateManager) }}
-    <br />
-    Done by: 
-    {{ users.find(user => user.id === task.completedByManagerId)?.name }} || Manager
-    <button
-      v-if="userRoles.includes('manager')"
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDateManager = null;
-          task.completedByManagerId = null;
-          undoDone(task, 'manager');
-        }
-      "
-    >
-      Undo
-    </button>
-  </div>
-</td>
-
-                      <td class="border border-dark">
-                        <input
-                          style="width: 75px"
-                          placeholder="Hrs.."
-                          class="form-control form-control-sm"
-                          :value="task?.hours"
-                          @blur="
-                            (e) => {
-                              if (!isNaN(parseFloat(e.target.value))) {
-                                task.hours = parseFloat(e.target.value);
+                        <td class="border border-dark">
+                          <input
+                            style="width: 75px"
+                            placeholder="Hrs.."
+                            class="form-control form-control-sm"
+                            :value="task?.hours"
+                            @blur="
+                              (e) => {
+                                if (!isNaN(parseFloat(e.target.value))) {
+                                  task.hours = parseFloat(e.target.value);
+                                }
                               }
-                            }
-                          "
-                        />
-                      </td>
+                            "
+                          />
+                        </td>
 
-                     
-<td class="border border-dark">
-  <!-- Autocomplete untuk memilih PIC -->
-  <v-autocomplete
-    :items="
-      users.map((t) => ({
-        label: `${t?.name} (${
-          departments.find((d) => `${d?.id}` === `${t?.departmentId}`)?.name
-        })`,
-        value: t,
-      }))
-    "
-    :item-title="(u) => u?.label"
-    @update:model-value="
-      (u) => {
-        if (!u) return;
+                        <td class="border border-dark">
+                          <!-- Autocomplete untuk memilih PIC -->
+                          <v-autocomplete
+                            :items="
+                              users.map((t) => ({
+                                label: `${t?.name} (${
+                                  departments.find(
+                                    (d) => `${d?.id}` === `${t?.departmentId}`
+                                  )?.name
+                                })`,
+                                value: t,
+                              }))
+                            "
+                            :item-title="(u) => u?.label"
+                            @update:model-value="
+                              (u) => {
+                                if (!u) return;
 
-        if (!task.inCharges) {
-          task.inCharges = [];
-        }
+                                if (!task.inCharges) {
+                                  task.inCharges = [];
+                                }
 
-        // Tambahkan user ke inCharges jika belum ada
-        if (!task.inCharges.some((ic) => ic.extUserId === u?.id)) {
-          task.inCharges.push({ extUserId: u?.id, username: u?.username });
-        }
-      }
-    "
-  ></v-autocomplete>
+                                // Tambahkan user ke inCharges jika belum ada
+                                if (
+                                  !task.inCharges.some(
+                                    (ic) => ic.extUserId === u?.id
+                                  )
+                                ) {
+                                  task.inCharges.push({
+                                    extUserId: u?.id,
+                                    username: u?.username,
+                                  });
+                                }
+                              }
+                            "
+                          ></v-autocomplete>
 
-  <!-- Daftar PIC yang dipilih -->
-  <ol>
-    <li
-      v-for="(ic, i) in task?.inCharges?.filter((ic) => !ic?.deletedAt) ?? []"
-      :key="i"
-    >
-      <template v-for="d in [{ user: users.find((t) => t?.id === ic?.extUserId) }]">
-        <div>
-          {{
-            `${d.user?.name} (${
-              departments.find((dx) => `${dx?.id}` === `${d?.user?.departmentId}`)?.name
-            })`
-          }}
-        </div>
-        <span>
-          <button
-            @click="
-              () => {
-                ic.deletedAt = new Date().toISOString(); // Tandai sebagai dihapus
-              }
-            "
-            class="btn btn-sm btn-outline-danger px-1 py-0"
-          >
-            Delete
-          </button>
-        </span>
-      </template>
-    </li>
-  </ol>
-</td>
-                  
-                      <td class="border border-dark">
-                        <textarea
-                          placeholder="Remark..."
-                          class="form-control form-control-sm"
-                          :value="task?.remark"
-                          @blur="
-                            (e) => {
-                              task.remark = e.target.value;
-                            }
-                          "
-                        />
-                      </td>
-                      <td class="border border-dark">
-                        <button
-                          class="btn btn-danger btn-sm"
-                          @click="
-                            () => {
-                              task.deletedAt = new Date().toISOString();
-                            }
-                          "
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </v-col>
-          </v-row>
-          <!-- </v-container> -->
-        </div>
-      </v-card>
-    </v-dialog>
-  </div>
-</keep-alive>
+                          <!-- Daftar PIC yang dipilih -->
+                          <ol>
+                            <li
+                              v-for="(ic, i) in task?.inCharges?.filter(
+                                (ic) => !ic?.deletedAt
+                              ) ?? []"
+                              :key="i"
+                            >
+                              <template
+                                v-for="d in [
+                                  {
+                                    user: users.find(
+                                      (t) => t?.id === ic?.extUserId
+                                    ),
+                                  },
+                                ]"
+                              >
+                                <div>
+                                  {{
+                                    `${d.user?.name} (${
+                                      departments.find(
+                                        (dx) =>
+                                          `${dx?.id}` ===
+                                          `${d?.user?.departmentId}`
+                                      )?.name
+                                    })`
+                                  }}
+                                </div>
+                                <span>
+                                  <button
+                                    @click="
+                                      () => {
+                                        ic.deletedAt = new Date().toISOString(); // Tandai sebagai dihapus
+                                      }
+                                    "
+                                    class="btn btn-sm btn-outline-danger px-1 py-0"
+                                  >
+                                    Delete
+                                  </button>
+                                </span>
+                              </template>
+                            </li>
+                          </ol>
+                        </td>
+
+                        <td class="border border-dark">
+                          <textarea
+                            placeholder="Remark..."
+                            class="form-control form-control-sm"
+                            :value="task?.remark"
+                            @blur="
+                              (e) => {
+                                task.remark = e.target.value;
+                              }
+                            "
+                          />
+                        </td>
+                        <td class="border border-dark">
+                          <button
+                            class="btn btn-danger btn-sm"
+                            @click="
+                              () => {
+                                task.deletedAt = new Date().toISOString();
+                              }
+                            "
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </v-col>
+            </v-row>
+            <!-- </v-container> -->
+          </div>
+        </v-card>
+      </v-dialog>
+    </div>
+  </keep-alive>
 </template>
 
 <style scoped>
