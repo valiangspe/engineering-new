@@ -15,8 +15,8 @@ using SupportReportAPI.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
-var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
-// var connString = "server=127.0.0.1;database=engineer;user=root;password=";
+// var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
+var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -28,6 +28,9 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connString, ServerVersion.AutoDetect(connString)));
+// builder.Services.AddDbContext<AppDbContext>(options =>
+//     options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
+//     new MySqlServerVersion(new Version(8, 0, 23))));
 
 builder.Services.AddCors(options =>
 {
@@ -328,6 +331,89 @@ app.MapPost("/api/deptconfigs", async (List<EngDeptConfig> deptConfig, AppDbCont
     return Results.Ok(deptConfig);
 });
 
+
+// for support engineering document
+// API untuk mengambil semua SupportEngineeringDocuments
+app.MapGet("/api/support-engineering-documents", async (AppDbContext db) =>
+{
+    var documents = await db.SupportEngineeringDocuments
+        .GroupBy(d => new { d.JobId, d.JobName })
+        .Select(g => new
+        {
+            JobId = g.Key.JobId,
+            JobName = g.Key.JobName,
+            SupportTableIds = g.Select(d => d.SupportTableId).Where(id => id.HasValue).Select(id => id.Value).ToList()
+        })
+        .ToListAsync();
+
+    return Results.Ok(documents);
+});
+
+// API untuk menambahkan SupportEngineeringDocument baru dengan kemampuan menerima banyak SupportTableId
+app.MapPost("/api/support-engineering-documents", async (AppDbContext db, [FromBody] SupportEngineeringDocumentDto dto) =>
+{
+    // Memeriksa apakah data valid
+    if (dto == null || dto.SupportTableIds == null || dto.SupportTableIds.Length == 0)
+        return Results.BadRequest("Invalid input data.");
+
+    // Menambahkan SupportTableId untuk setiap id yang diterima
+    foreach (var supportTableId in dto.SupportTableIds)
+    {
+        var newDocument = new SupportEngineeringDocument
+        {
+            JobId = dto.JobId,
+            JobName = dto.JobName,
+            SupportTableId = supportTableId,
+            CreatedAt = DateTime.Now,
+            UpdatedAt = DateTime.Now
+        };
+        db.SupportEngineeringDocuments.Add(newDocument);
+    }
+
+    await db.SaveChangesAsync();
+
+    return Results.Ok(dto);
+});
+
+
+
+// API untuk memperbarui SupportTableId untuk SupportEngineeringDocument yang ada
+app.MapPut("/api/support-engineering-documents/{id}/supporttableid", async (AppDbContext db, int id, [FromBody] int[] supportTableIds) =>
+{
+    var document = await db.SupportEngineeringDocuments
+        .FirstOrDefaultAsync(d => d.Id == id);
+
+    if (document == null)
+        return Results.NotFound();
+
+    // Memperbarui SupportTableId
+    if (supportTableIds != null && supportTableIds.Length > 0)
+    {
+        document.SupportTableId = supportTableIds.Last();  // Jika banyak, hanya mengambil yang terakhir
+        document.UpdatedAt = DateTime.Now;
+
+        await db.SaveChangesAsync();
+        return Results.Ok(document);
+    }
+
+    return Results.BadRequest("SupportTableId tidak valid.");
+});
+
+
+// API untuk menghapus SupportEngineeringDocument berdasarkan ID
+app.MapDelete("/api/support-engineering-documents/{id}", async (AppDbContext db, int id) =>
+{
+    var document = await db.SupportEngineeringDocuments
+        .FirstOrDefaultAsync(d => d.Id == id);
+
+    if (document == null)
+        return Results.NotFound();
+
+    db.SupportEngineeringDocuments.Remove(document);
+    await db.SaveChangesAsync();
+
+    return Results.Ok(document);
+});
 
 
 // app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, string? to, int? taskId, int? extInquiryId, bool? withUserNames, bool? excel, HttpContext httpContext, int? userId) =>
@@ -1665,22 +1751,39 @@ namespace SupportReportAPI.Models
         public string? Content { get; set; }
     }
 
-public class SupportTable : BaseModel
-{
-    [Key]
-    public int Id { get; set; }
+        public class SupportTable : BaseModel
+        {
+            [Key]
+            public int Id { get; set; }
 
-    [Required]
-    public string Name { get; set; }
+            [Required]
+            public string Name { get; set; }
 
-    public string? FilePath { get; set; } // Path untuk menyimpan file
-}
+            public string? FilePath { get; set; } // Path untuk menyimpan file
+        }
+
+        public class SupportEngineeringDocument : BaseModel
+        {
+            [Key]
+            public int Id { get; set; }  // Tidak nullable, karena ini adalah kunci utama
+
+            public int? SupportTableId { get; set; }  // Bisa nullable jika diperlukan
+
+            public int JobId { get; set; }  // ID dari pekerjaan yang diambil
+
+            public string JobName { get; set; }  // Nama pekerjaan (job)
+
+            public DateTime CreatedAt { get; set; }  // Tanggal dan waktu pembuatan
+
+            public DateTime UpdatedAt { get; set; }  // Tanggal dan waktu pembaruan terakhir
+        }
+
+
 
 
     public class AppDbContext : DbContext
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
-
         public DbSet<EngineerSupport> EngineerSupports { get; set; }
         public DbSet<SupportDetail> SupportDetails { get; set; }
         public DbSet<OutstandingPostPO> OutstandingPostPOs { get; set; }
@@ -1701,7 +1804,7 @@ public class SupportTable : BaseModel
         public DbSet<InquiryAIGeneration> InquiryAIGenerations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<SupportTable> SupportTables { get; set; }
-
+        public DbSet<SupportEngineeringDocument> SupportEngineeringDocuments { get; set; }
 
 
         public override int SaveChanges()
@@ -1938,4 +2041,10 @@ public class ActivityDto
 
     public int? ExtPanelCodeId { get; set; }
     public int? SupportTableId { get; set; } 
+}
+public class SupportEngineeringDocumentDto
+{
+    public int JobId { get; set; }  // ID dari pekerjaan yang diambil
+    public string JobName { get; set; }  // Nama pekerjaan (job)
+    public int[] SupportTableIds { get; set; }  // Array of SupportTableId
 }

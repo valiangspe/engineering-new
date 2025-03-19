@@ -46,6 +46,7 @@ import AIDocumentAnalyzerPage from "./pages/AIDocumentAnalyzerPage.vue";
 import AIDocumentAnalyzerInqPage from "./pages/AIDocumentAnalyzerInqPage.vue";
 import engTimeProcess from "./EngineerTImeProcess.vue"
 import SupportDoc from "./pages/SupportDoc.vue";
+import SupportEngineeringDocument from "./pages/SupportEngineeringDocument.vue";
 
 const routes = [
   // dynamic segments start with a colon
@@ -82,6 +83,7 @@ const routes = [
 
   { path: "/addRole", component: role},
   { path: "/supportDoc", component: SupportDoc }, 
+  { path: "/SupportEngineeringDocument", component: SupportEngineeringDocument }, 
 
   { path: "/engineerTimeProcess", component: engTimeProcess },
   // { 

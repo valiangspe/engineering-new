@@ -247,6 +247,7 @@ const fetchEngineeringActivitiesData = async () => {
     from: new Date(`${dateRange.value.from}T00:00:00`).toISOString(),
     to: new Date(`${dateRange.value.to}T23:59:39`).toISOString(),
   });
+  console.log("Engineering Activities:", d); // Debug log
   activities.value = d;
 };
 
