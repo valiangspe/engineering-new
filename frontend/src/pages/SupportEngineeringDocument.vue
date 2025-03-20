@@ -17,6 +17,15 @@
         fixed-header
         height="400px"
       >
+        <template v-slot:headers>
+          <tr>
+            <th v-for="header in headers" :key="header.value">
+              {{ header.text }}
+            </th>
+          </tr>
+        </template>
+
+        <!-- Render Data Rows -->
         <template v-slot:item="{ item }">
           <tr>
             <td>{{ item.name }}</td>
@@ -25,19 +34,19 @@
                 v-model="item.selectedCategories"
                 :value="category.id"
                 dense
-                :disabled="!item.isNew && editingJobId !== item.id"
+                :disabled="!item.isNew && !item.isEditing"
               ></v-checkbox>
             </td>
             <td>
               <v-btn icon small color="blue" @click="toggleEdit(item)">
-                <v-icon>{{ editingJobId === item.id ? "mdi-check" : "mdi-pencil" }}</v-icon>
+                <v-icon>{{ item.isEditing ? "mdi-check" : "mdi-pencil" }}</v-icon>
               </v-btn>
               <v-btn
-                v-if="editingJobId === item.id || item.isNew"
+                v-if="item.isEditing || item.isNew"
                 icon
                 small
                 color="red"
-                @click="deleteJob(item.id)"
+                @click="deleteJob(item)"
               >
                 <v-icon>mdi-delete</v-icon>
               </v-btn>
@@ -47,6 +56,7 @@
       </v-data-table>
 
       <!-- Tombol untuk simpan ke backend, hanya muncul saat menambah job -->
+      <!-- Tombol untuk simpan ke backend, hanya muncul saat menambah job -->
       <v-btn
         v-if="isAdding"
         color="success"
@@ -55,6 +65,7 @@
       >
         <v-icon left>mdi-cloud-upload</v-icon> Submit Jobs to Backend
       </v-btn>
+
     </v-card>
 
     <!-- Form Tambah Job -->
@@ -97,14 +108,49 @@ const selectedJobs = ref([]);
 const isFormVisible = ref(false);
 const selectedJob = ref(null);
 const isAdding = ref(false);
-const editingJobId = ref(null);
 
+// Headers untuk tabel (menampilkan Job Name + Nama Support Tables + Actions)
 const headers = ref([{ text: "Job Name", value: "name" }]);
 
+// Cek apakah bisa submit (job baru harus memiliki minimal 1 checkbox dicentang)
 // Cek apakah bisa submit (job baru harus memiliki minimal 1 checkbox dicentang)
 const canSubmit = computed(() => {
   return selectedJobs.value.some(job => job.isNew && job.selectedCategories.length > 0);
 });
+
+const submitToBackend = async () => {
+  try {
+    const job = selectedJobs.value.find(j => j.isNew);
+
+    if (!job || job.selectedCategories.length === 0) {
+      console.error("❌ Harus memilih minimal satu checkbox sebelum submit!");
+      return;
+    }
+
+    const payload = {
+      jobId: parseInt(job.id, 10),
+      jobName: job.name,
+      supportTableIds: job.selectedCategories.filter(id => id !== null && id !== undefined),
+    };
+
+    console.log("📤 Submitting Payload:", JSON.stringify(payload, null, 2));
+
+    await axios.post(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/support-engineering-documents`,
+      payload,
+      { headers: { "Content-Type": "application/json" } }
+    );
+
+    console.log("✅ Jobs submitted successfully!");
+
+    // **Reset form setelah submit sukses**
+    isAdding.value = false;
+    fetchExistingJobs(); // Refresh data dari backend
+  } catch (error) {
+    console.error("❌ Error submitting jobs:", error.response?.data || error);
+  }
+};
+
 
 const showCreateForm = () => {
   isAdding.value = true;
@@ -135,6 +181,7 @@ const fetchSupportTables = async () => {
     );
     supportTables.value = response.data.sort((a, b) => a.id - b.id);
 
+    // Tambahkan ke headers tabel
     headers.value = [
       { text: "Job Name", value: "name" },
       ...supportTables.value.map((category) => ({
@@ -160,7 +207,8 @@ const fetchExistingJobs = async () => {
         id: job.jobId,
         name: job.jobName,
         selectedCategories: job.supportTableIds || [],
-        isNew: false, // Tandai sebagai job lama
+        isNew: false,
+        isEditing: false,
       }));
     }
     isAdding.value = false;
@@ -178,7 +226,8 @@ const saveJob = () => {
       id: selectedJobData.id,
       name: selectedJobData.name,
       selectedCategories: [],
-      isNew: true, // Tandai sebagai job baru agar bisa langsung edit checkbox
+      isNew: true,
+      isEditing: true,
     });
 
     selectedJob.value = null;
@@ -188,74 +237,47 @@ const saveJob = () => {
 
 // Toggle Edit Mode
 const toggleEdit = (job) => {
-  if (editingJobId.value === job.id) {
+  if (job.isEditing) {
     updateJob(job);
-    editingJobId.value = null;
-  } else {
-    editingJobId.value = job.id;
   }
+  job.isEditing = !job.isEditing;
 };
 
 // Hapus job
-const deleteJob = async (id) => {
-  selectedJobs.value = selectedJobs.value.filter((job) => job.id !== id);
-
+const deleteJob = async (job) => {
   try {
-    await axios.delete(`${import.meta.env.VITE_APP_BASE_URL}/api/support-engineering-documents/${id}`);
-    console.log("Job deleted successfully");
+    await axios.delete(`${import.meta.env.VITE_APP_BASE_URL}/api/support-engineering-documents/${job.id}`);
+    selectedJobs.value = selectedJobs.value.filter((j) => j.id !== job.id);
+    console.log("✅ Job deleted successfully");
   } catch (error) {
-    console.error("Error deleting job:", error);
+    console.error("❌ Error deleting job:", error);
   }
 };
 
-// Update job ke backend setelah edit selesai
+// **Update job ke backend setelah edit selesai (PUT)**
 const updateJob = async (job) => {
   try {
     const payload = {
-      supportTableIds: job.selectedCategories.filter((id) => id !== null && id !== undefined),
-    };
-
-    console.log("Updating job:", JSON.stringify(payload, null, 2));
-
-    await axios.put(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/support-engineering-documents/${job.id}/supporttableid`,
-      payload,
-      { headers: { "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    console.error("Error updating job:", error);
-  }
-};
-
-// Submit ke backend
-const submitToBackend = async () => {
-  try {
-    if (!canSubmit.value) {
-      console.error("Harus mencentang minimal satu checkbox!");
-      return;
-    }
-
-    const job = selectedJobs.value.find(j => j.isNew);
-
-    const payload = {
-      jobId: parseInt(job.id, 10),
+      jobId: job.id,
       jobName: job.name,
       supportTableIds: job.selectedCategories.filter(id => id !== null && id !== undefined),
     };
 
-    console.log("Submitting payload:", JSON.stringify(payload, null, 2));
+    console.log("🔄 Updating Job:", payload);
 
-    await axios.post(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/support-engineering-documents`,
-      payload,
+    await axios.put(
+      `${import.meta.env.VITE_APP_BASE_URL}/api/support-engineering-documents/${job.id}/supporttableid`,
+      payload.supportTableIds, // Pastikan ini adalah array `int[]`
       { headers: { "Content-Type": "application/json" } }
     );
 
-    isAdding.value = false;
+    console.log("✅ Job updated successfully!");
+    fetchExistingJobs(); // Refresh UI tanpa reload
   } catch (error) {
-    console.error("Error submitting jobs:", error);
+    console.error("❌ Error updating job:", error.response?.data || error);
   }
 };
+
 
 onMounted(() => {
   fetchJobs();

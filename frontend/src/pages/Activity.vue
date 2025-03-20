@@ -46,6 +46,7 @@ const selectedTask = ref(null); // Menyimpan data task yang dipilih
 const notificationStore = useNotificationStore(); 
 const showOtherDialog = ref(false);
 const otherActivity = ref({ name: '', file: null });
+const selectedFilterUser = ref(null);
 
 const saveOtherActivity = async () => {
   try {
@@ -129,22 +130,6 @@ watch(selectedDepartment, () => {
 //     )
 //   );
 // };
-
-const filterActivities = () => {
-  if (!selectedDepartment.value || selectedDepartment.value === "All Departments") {
-    filteredActivities.value = activities.value; // Jika tidak dipilih, tampilkan semua
-    return;
-  }
-
-  filteredActivities.value = activities.value.filter(activity =>
-    activity.tasks.some(task =>
-      task.inCharges.some(inCharge =>
-        usersMap.value[inCharge.extUserId] === selectedDepartment.value // Bandingkan dengan department.name
-      )
-    )
-  );
-};
-
 
 const fetchCustomers = async () => {
   try {
@@ -255,9 +240,45 @@ const defaultForm = {
 const form = ref({ ...defaultForm });
 
 const displayedActivities = computed(() => {
-  return selectedDepartment.value ? filteredActivities.value : activities.value;
+  if (selectedDepartment.value || selectedFilterUser.value) {
+    return filteredActivities.value;
+  }
+  return activities.value;
 });
+const filterActivities = () => {
+  if (!selectedDepartment.value && !selectedFilterUser.value) {
+    filteredActivities.value = activities.value;
+    return;
+  }
 
+  filteredActivities.value = activities.value.filter(activity => {
+    let matchesDepartment = true;
+    let matchesUser = true;
+
+    if (selectedDepartment.value && selectedDepartment.value !== "All Departments") {
+      matchesDepartment = activity.tasks.some(task =>
+        task.inCharges.some(inCharge =>
+          usersMap.value[inCharge.extUserId] === selectedDepartment.value
+        )
+      );
+    }
+
+    if (selectedFilterUser.value) {
+      matchesUser = activity.tasks.some(task =>
+        task.inCharges.some(inCharge =>
+          `${inCharge.extUserId}` === `${selectedFilterUser.value}`
+        )
+      );
+    }
+
+    return matchesDepartment && matchesUser;
+  });
+};
+
+// Pastikan filter bekerja saat ada perubahan pada filter user
+watch(selectedFilterUser, () => {
+  filterActivities();
+});
 
 // Function untuk memuat data dari API
 const startupById = async (taskId) => {
@@ -303,9 +324,6 @@ watch(() => taskId, async (newTaskId) => {
     await startupById(newTaskId);
   }
 });
-
-
-const selectedFilterUser = ref(null);
 
 
 const loadNotifications = async () => {
@@ -605,10 +623,10 @@ const exportToExcel = async () => {
 const handleSave = async () => {
   try {
     // Periksa apakah customer sudah dipilih
-    if (!form.value.selectedCustomerId || !form.value.customer) {
-      console.warn("Customer belum dipilih.");
-      return;
-    }
+    // if (!form.value.selectedCustomerId || !form.value.customer) {
+    //   console.warn("Customer belum dipilih.");
+    //   return;
+    // }
 
     // Pastikan data tidak berbentuk reactive Vue
     const updatedForm = JSON.parse(JSON.stringify(form.value));
@@ -780,7 +798,7 @@ const alertx = (content) => {
           label="Filter by User"
           :items="users.map(user => ({
             label: `${user?.name} (${departments.find(d => `${d?.id}` === `${user?.departmentId}`)?.name || 'Unknown'})`,
-            value: user.id // Gunakan ID agar tidak muncul {object}
+            value: user.id
           }))"
           item-title="label" 
           density="compact"
@@ -789,8 +807,9 @@ const alertx = (content) => {
           hide-details
           clearable
           class="input-field mr-2"
-          @update:model-value="fetchEngineeringActivitiesData"
+          @update:model-value="filterActivities"
         ></v-autocomplete>
+
 
         <!-- Filter Department -->
         <v-autocomplete

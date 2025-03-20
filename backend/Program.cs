@@ -352,68 +352,73 @@ app.MapGet("/api/support-engineering-documents", async (AppDbContext db) =>
 // API untuk menambahkan SupportEngineeringDocument baru dengan kemampuan menerima banyak SupportTableId
 app.MapPost("/api/support-engineering-documents", async (AppDbContext db, [FromBody] SupportEngineeringDocumentDto dto) =>
 {
-    // Memeriksa apakah data valid
     if (dto == null || dto.SupportTableIds == null || dto.SupportTableIds.Length == 0)
         return Results.BadRequest("Invalid input data.");
 
-    // Menambahkan SupportTableId untuk setiap id yang diterima
+    // Tambahkan setiap SupportTableId sebagai entri terpisah
     foreach (var supportTableId in dto.SupportTableIds)
     {
         var newDocument = new SupportEngineeringDocument
         {
             JobId = dto.JobId,
             JobName = dto.JobName,
-            SupportTableId = supportTableId,
+            SupportTableId = supportTableId, // ID unik tiap entri
             CreatedAt = DateTime.Now,
             UpdatedAt = DateTime.Now
         };
+
         db.SupportEngineeringDocuments.Add(newDocument);
     }
 
     await db.SaveChangesAsync();
-
-    return Results.Ok(dto);
+    return Results.Ok(new { message = "Job successfully submitted", dto });
 });
-
 
 
 // API untuk memperbarui SupportTableId untuk SupportEngineeringDocument yang ada
-app.MapPut("/api/support-engineering-documents/{id}/supporttableid", async (AppDbContext db, int id, [FromBody] int[] supportTableIds) =>
+app.MapPut("/api/support-engineering-documents/{jobId}/supporttableid", async (AppDbContext db, int jobId, [FromBody] int[] supportTableIds) =>
 {
-    var document = await db.SupportEngineeringDocuments
-        .FirstOrDefaultAsync(d => d.Id == id);
+    var existingDocuments = db.SupportEngineeringDocuments.Where(d => d.JobId == jobId).ToList();
 
-    if (document == null)
-        return Results.NotFound();
-
-    // Memperbarui SupportTableId
-    if (supportTableIds != null && supportTableIds.Length > 0)
+    if (existingDocuments.Count > 0)
     {
-        document.SupportTableId = supportTableIds.Last();  // Jika banyak, hanya mengambil yang terakhir
-        document.UpdatedAt = DateTime.Now;
-
-        await db.SaveChangesAsync();
-        return Results.Ok(document);
+        // Hapus semua SupportTableId lama untuk JobId ini
+        db.SupportEngineeringDocuments.RemoveRange(existingDocuments);
     }
 
-    return Results.BadRequest("SupportTableId tidak valid.");
-});
+    // Tambahkan SupportTableId baru sebagai entri terpisah
+    foreach (var supportTableId in supportTableIds)
+    {
+        var newDocument = new SupportEngineeringDocument
+        {
+            JobId = jobId,
+            JobName = existingDocuments.FirstOrDefault()?.JobName ?? "Unknown", // Gunakan nama dari data lama
+            SupportTableId = supportTableId,
+            CreatedAt = DateTime.Now,
+            UpdatedAt = DateTime.Now
+        };
 
+        db.SupportEngineeringDocuments.Add(newDocument);
+    }
+
+    await db.SaveChangesAsync();
+    return Results.Ok(new { message = "Job updated successfully", jobId, supportTableIds });
+});
 
 // API untuk menghapus SupportEngineeringDocument berdasarkan ID
-app.MapDelete("/api/support-engineering-documents/{id}", async (AppDbContext db, int id) =>
+app.MapDelete("/api/support-engineering-documents/{jobId}", async (AppDbContext db, int jobId) =>
 {
-    var document = await db.SupportEngineeringDocuments
-        .FirstOrDefaultAsync(d => d.Id == id);
+    var documents = db.SupportEngineeringDocuments.Where(d => d.JobId == jobId).ToList();
 
-    if (document == null)
-        return Results.NotFound();
+    if (!documents.Any())
+        return Results.NotFound("Job not found");
 
-    db.SupportEngineeringDocuments.Remove(document);
+    db.SupportEngineeringDocuments.RemoveRange(documents);
     await db.SaveChangesAsync();
 
-    return Results.Ok(document);
+    return Results.Ok(new { message = "Job deleted successfully", jobId });
 });
+
 
 
 // app.MapGet("/api/dashboard/activities", async (AppDbContext db, string? from, string? to, int? taskId, int? extInquiryId, bool? withUserNames, bool? excel, HttpContext httpContext, int? userId) =>
