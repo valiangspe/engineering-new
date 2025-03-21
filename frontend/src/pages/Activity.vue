@@ -497,7 +497,7 @@ const exportToExcel = async () => {
         picDepts: picDepts || 'Tidak Ada PIC',
         tasks: filteredTasks?.length || 0,
         tasksDone: doneTasks,
-        totalHrs: a?.totalHours || 0
+        totalHrs: a?.tasks?.reduce((acc, t) => acc + (t?.hours || 0), 0)
       });
     });
 
@@ -636,8 +636,8 @@ const handleSave = async () => {
 
     // Pastikan format customer string tetap ada
     updatedForm.customer = form.value.customer
-      ? `${form.value.customer.businessType} ${form.value.customer.name}`
-      : null;
+    ? `${form.value.customer.businessType} ${form.value.customer.name}`
+    : null;
 
     const resp = await fetch(
       `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities`,
@@ -650,6 +650,9 @@ const handleSave = async () => {
 
     if (resp.ok) {
       console.log("Activity saved successfully.");
+    }
+    if (updatedForm.customer && typeof updatedForm.customer === 'object') {
+      updatedForm.customer = `${updatedForm.customer.businessType} ${updatedForm.customer.name}`;
     }
 
     dialog.value = false;
@@ -917,7 +920,7 @@ const alertx = (content) => {
               }}
             </td>
             <td class="border border-dark p-0 m-0">
-              {{ a?.customer || 'Belum Memilih' }} <!-- Tampilkan nama customer -->
+              {{ typeof a?.customer === 'string' ? a.customer : `${a?.customer?.businessType} ${a?.customer?.name}` || 'Belum Memilih' }}
             </td>
             <td class="border border-dark p-0 m-0">
               {{
@@ -970,25 +973,12 @@ const alertx = (content) => {
             </td>
             <td class="border border-dark p-0 m-0">
   <div
-    :style="`background-color: ${(() => {
-      const totalTasks = d.filteredTasks?.length ?? 0;
-      const doneTasks = d.filteredTasks?.filter((t) => 
-        t?.completedDatePic || t?.completedDateSpv || t?.completedDateManager
-      )?.length ?? 0;
-
-      if (doneTasks === 0) {
-        // Tidak ada yang done, warna merah
-        return 'red';
-      } else if (d.filteredTasks?.every((t) => 
-        t?.completedDatePic && t?.completedDateSpv && t?.completedDateManager
-      )) {
-        // Semua sudah selesai, warna hijau
-        return 'green';
-      } else {
-        // Sebagian sudah selesai, warna kuning
-        return 'yellow';
-      }
-    })()}`"
+    :style="`background-color: ${
+      d.filteredTasks?.every(t => t.completedDateManager) ? 'green' :
+      d.filteredTasks?.every(t => t.completedDateSpv) ? 'yellow' :
+      d.filteredTasks?.every(t => t.completedDatePic) ? 'orange' :
+      'red'
+    }`"
   >
     <strong>
       {{
@@ -1121,12 +1111,20 @@ const alertx = (content) => {
                 }))"
                 :item-title="(item) => item.label"
                 v-model="form.customer"
-                @update:model-value="(selected) => {
-                  if (selected) {
-                    form.customer = selected;
-                    form.selectedCustomerId = selected?.id;
+                @update:model-value="
+                  (newType) => {
+                    const prevCustomer = form.customer;  // Simpan customer sebelum perubahan
+                    const prevCustomerId = form.selectedCustomerId;
+
+                    form.type = newType;
+
+                    // Kembalikan customer jika sebelumnya ada
+                    if (prevCustomerId && prevCustomer) {
+                      form.customer = prevCustomer;
+                      form.selectedCustomerId = prevCustomerId;
+                    }
                   }
-                }"
+                "
                 label="Select a customer or company"
                 outlined
               ></v-autocomplete>

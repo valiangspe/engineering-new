@@ -299,42 +299,38 @@ const items = computed(() => {
   return activities.value
     ?.map((activity) => {
       const allTasks = activity?.tasks || [];
-      const allTasksCompleted = allTasks.every((task) => task?.completedDate);
-      const hasIncompleteTasks = allTasks.some((task) => !task?.completedDate);
-
-      const totalTasks = activity?.tasks?.length || 0;
-      // const doneTasks =
-      //   activity?.tasks?.filter(
-      //     (task) =>
-      //       task?.completedDatePic ||
-      //       task?.completedDateSpv ||
-      //       task?.completedDateManager
-      //   )?.length || 0;
-
+      const totalTasks = allTasks.length;
       const doneTasks =
-        activity?.tasks?.filter(
+        allTasks.filter(
           (task) =>
             task?.completedDatePic &&
             task?.completedDateSpv &&
             task?.completedDateManager
-        )?.length || 0;
+        ).length || 0;
 
+      // Menentukan status Done/Outs berdasarkan jumlah tasks selesai
       const doneOuts =
         totalTasks === doneTasks && totalTasks > 0
-          ? "Done" // Semua selesai
-          : `Outs (${doneTasks}/${totalTasks})`; // Sebagian selesai
+          ? "Done"
+          : `Outs (${doneTasks}/${totalTasks})`;
 
-      const type = activity.type; // Ambil langsung dari activity.type
-
+      // Ambil PO berdasarkan extPurchaseOrderId
       const foundPO = pos.value.find(
         (po) => `${po?.id}` === `${activity?.extPurchaseOrderId}`
       );
 
+      // Ambil Inquiry berdasarkan extInquiryId
+      const foundInquiry = inquiries?.value?.find(
+        (inquiry) => `${inquiry?.id}` === `${activity?.extInquiryId}`
+      );
+
+      // Ambil Job berdasarkan extJobId
       const foundJob = jobs.value.jobs?.find(
         (job) =>
           `${job?.masterJavaBaseModel?.id}` === `${activity?.extJobId}`
       );
 
+      // Ambil Panel Code berdasarkan extPanelCodeId
       const foundPanelCode = jobs.value.jobs
         ?.flatMap((job) => job?.panelCodes)
         .find(
@@ -343,6 +339,7 @@ const items = computed(() => {
             `${activity?.extPanelCodeId}`
         );
 
+      // Ambil daftar PIC berdasarkan ID
       const foundUsers = [
         ...new Set(
           activity?.tasks?.flatMap((task) =>
@@ -353,10 +350,10 @@ const items = computed(() => {
         .map((id) => users.value?.find((user) => `${user?.id}` === `${id}`)?.name)
         .join(", ");
 
-      const foundInquiry = inquiries?.value?.find(
-        (inquiry) => `${inquiry?.id}` === `${activity?.extInquiryId}`
-      );
+      // Format customer: Prioritaskan dari `activity.customer`, lalu PO, lalu Inquiry
+      const customer = activity?.customer || foundPO?.account?.name || foundInquiry?.customer?.name || "Belum Memilih";
 
+      // Format tanggal done
       const formatDoneDate = (date) =>
         date
           ? new Date(date).toLocaleDateString("id-ID", {
@@ -376,35 +373,37 @@ const items = computed(() => {
         (task) => task.completedDateManager
       )?.completedDateManager;
 
+      // Format deadline dengan jumlah hari tersisa
+      const daysDeadline = (() => {
+        if (activity?.toCache) {
+          const deadlineDate = new Date(activity.toCache);
+          const remainingDays = Math.round(
+            (deadlineDate.getTime() - new Date().getTime()) / 86400000
+          );
+          return `${deadlineDate.toLocaleDateString("id-ID", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          })} (${remainingDays} hari)`;
+        }
+        return "-";
+      })();
+
       return {
-        po: foundPO?.purchaseOrderNumber,
-        customer:
-          foundPO?.account?.name ?? foundInquiry?.customer?.name ?? "",
-        inquiry: foundInquiry ? `${foundInquiry?.inquiryNumber}` : "",
-        doneOuts, // Tambahkan Done/Outs ke item
-        project: foundJob?.name,
+        customer, // Perbaikan customer agar muncul
+        po: foundPO?.purchaseOrderNumber || "-",
+        inquiry: foundInquiry ? `${foundInquiry?.inquiryNumber}` : "-",
+        doneOuts,
+        project: foundJob?.name || "-",
         product: foundPanelCode
           ? `${foundPanelCode?.type}: ${foundPanelCode?.name}`
-          : "",
-        type, // Tambahkan type ke item
-        daysDeadline: (() => {
-          if (activity?.toCache) {
-            const deadlineDate = new Date(activity.toCache);
-            const remainingDays = Math.round(
-              (deadlineDate.getTime() - new Date().getTime()) / 86400000
-            );
-            return `${deadlineDate.toLocaleDateString("id-ID", {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })} (${remainingDays} hari)`;
-          }
-          return "";
-        })(),
+          : "-",
+        type: activity?.type || "-",
+        daysDeadline,
         donePic: formatDoneDate(donePic),
         doneSpv: formatDoneDate(doneSpv),
         doneManager: formatDoneDate(doneManager),
-        tasks: activity?.tasks?.length,
+        tasks: totalTasks || "-",
       };
     })
     ?.filter((item) => {
