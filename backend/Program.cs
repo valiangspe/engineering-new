@@ -617,6 +617,54 @@ app.MapGet("/api/dashboard/activities/task/{taskId:int}", async (
     return Results.Ok(filteredActivities);
 });
 
+// mengambil data dari tabel task 
+app.MapGet("/api/dashboard/activities/task", async (
+    AppDbContext db,
+    int? taskId,
+    int? activityId) =>
+{
+    var query = db.Tasks
+        .Include(t => t.InCharges) // optional, kalau butuh
+        .AsQueryable();
+
+    if (taskId != null)
+    {
+        query = query.Where(t => t.Id == taskId);
+    }
+
+    if (activityId != null)
+    {
+        query = query.Where(t => t.EngineeringActivityId == activityId);
+    }
+
+    var tasks = await query.Select(t => new
+    {
+        id = t.Id,
+        description = t.Description,
+        engineeringActivityId = t.EngineeringActivityId,
+        from = t.From,
+        to = t.To,
+        hours = t.Hours,
+        completedDateSpv = t.CompletedDateSpv,
+        completedDatePic = t.CompletedDatePic,
+        completedDateManager = t.CompletedDateManager,
+        remark = t.Remark,
+        createdAt = t.CreatedAt,
+        updatedAt = t.UpdatedAt,
+        inCharges = t.InCharges.Select(ic => new
+        {
+            id = ic.Id,
+            extUserId = ic.ExtUserId,
+            taskId = ic.TaskId,
+            picName = ic.PicName,
+            updatedAt = ic.UpdatedAt,
+            deletedAt = ic.DeletedAt
+        }).ToList()
+    }).ToListAsync();
+
+    return Results.Ok(tasks);
+});
+
 // batas
 
 

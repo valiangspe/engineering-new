@@ -207,7 +207,7 @@ const headers = ref([
 
   { title: "Total Activity", value: "totalActivity" },
   { title: "Total T. Process", value: "totalProcess" },
-  { title: "Product", value: "product" }, // Tambahkan kolom Product
+  // { title: "Product", value: "product" }, 
 ]);
 
 const items = computed(() => {

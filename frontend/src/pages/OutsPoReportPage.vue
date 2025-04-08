@@ -114,6 +114,7 @@
 import ExcelJS from "exceljs";
 import { ref, computed } from "vue";
 import {
+  fetchActivityByTaskId,
   fetchDepartments,
   fetchEngineeringActivities,
   fetchExtCrmPurchaseOrdersProtoSimple,
@@ -129,6 +130,7 @@ const exportToExcel = async () => {
 
   // Tambahkan header
   worksheet.columns = [
+    { header: "TaskName", key: "description" }, 
     { header: "Customer", key: "customer" },
     { header: "PO", key: "po" },
     { header: "Inquiry", key: "inquiry" },
@@ -136,17 +138,37 @@ const exportToExcel = async () => {
     { header: "Project", key: "project" },
     { header: "Product", key: "product" },
     { header: "PIC", key: "type" },
+    { header: "Hours", key: "hours" }, 
     { header: "Done PIC", key: "donePic" },
     { header: "Done SPV", key: "doneSpv" },
     { header: "Done Manager", key: "doneManager" },
     { header: "Days (Deadline)", key: "daysDeadline" },
-    { header: "Tasks", key: "tasks" },
+    // { header: "Tasks", key: "tasks" },
   ];
 
   // Tambahkan data
+  // items.value.forEach((item) => {
+  //   worksheet.addRow(item);
+  // });
   items.value.forEach((item) => {
-    worksheet.addRow(item);
+  worksheet.addRow({
+    description: item.description,
+    customer: item.customer,
+    po: item.po,
+    inquiry: item.inquiry,
+    doneOuts: item.doneOuts,
+    project: item.project,
+    product: item.product,
+    type: item.type,
+    hours: item.hours,
+    donePic: item.donePic,
+    doneSpv: item.doneSpv,
+    doneManager: item.doneManager,
+    daysDeadline: item.daysDeadline,
+    // tasks: item.tasks,
   });
+});
+
 
   // Simpan file
   const buffer = await workbook.xlsx.writeBuffer();
@@ -168,7 +190,7 @@ const activities = ref([]);
 const pos = ref([]);
 const jobs = ref([]);
 const inquiries = ref([]);
-
+// const task = ref ([]);
 const selectedActivityType = ref("PostPO");
 const isCompleted = ref(false);
 
@@ -187,6 +209,11 @@ const fetchInquiriesData = async () => {
   inquiries.value = d;
 };
 
+// const fetchActivityByTaskId = async () => {
+//   const d = await fetchActivityByTaskId ();
+//   console.log("task",d);
+//   task.value = d;
+// }
 const fetchUsersData = async () => {
   const d = await fetchUsers();
   console.log("users", d);
@@ -196,6 +223,20 @@ const fetchDepartmentsData = async () => {
   const d = await fetchDepartments();
   departments.value = d;
 };
+const fetchTaskById = async (taskId) => {
+  try {
+    const res = await fetch(`/api/dashboard/activities/task/${taskId}`);
+    const json = await res.json();
+
+    if (json.length > 0 && json[0].tasks.length > 0) {
+      return json[0].tasks[0].description ?? "-";
+    }
+  } catch (err) {
+    console.error("Gagal mengambil task:", err);
+  }
+  return "-";
+};
+
 
 // Create refs for selected month and year
 const selectedMonth = ref(new Date().getMonth());
@@ -265,8 +306,10 @@ fetchJobsProtoSimpleData();
 fetchEngineeringActivitiesData();
 fetchPosData();
 fetchInquiriesData();
+fetchTaskById();
 
 const headers = ref([
+  { title: "TaskName", value: "description" },  
   { title: "Customer", value: "customer" },
   { title: "PO", value: "po" },
   { title: "Inquiry", value: "inquiry" },
@@ -274,14 +317,15 @@ const headers = ref([
   { title: "Done/Outs", value: "doneOuts" },
   { title: "Project", value: "project" },
   { title: "Product", value: "product" },
-  { title: "PIC", value: "type" },
+  { title: "TYpe", value: "type" },
+  { title: "Hours", value: "hours" },  
 
   { title: "Done PIC", value: "donePic" },
   { title: "Done SPV", value: "doneSpv" },
   { title: "Done Manager", value: "doneManager" },
 
   { title: "Days (Deadline)", value: "daysDeadline" },
-  { title: "Tasks", value: "tasks" },
+  // { title: "Tasks", value: "tasks" },
 ]);
 
 const cardTitle = computed(() => {
@@ -297,40 +341,20 @@ const cardTitle = computed(() => {
 // });
 const items = computed(() => {
   return activities.value
-    ?.map((activity) => {
-      const allTasks = activity?.tasks || [];
-      const totalTasks = allTasks.length;
-      const doneTasks =
-        allTasks.filter(
-          (task) =>
-            task?.completedDatePic &&
-            task?.completedDateSpv &&
-            task?.completedDateManager
-        ).length || 0;
-
-      // Menentukan status Done/Outs berdasarkan jumlah tasks selesai
-      const doneOuts =
-        totalTasks === doneTasks && totalTasks > 0
-          ? "Done"
-          : `Outs (${doneTasks}/${totalTasks})`;
-
-      // Ambil PO berdasarkan extPurchaseOrderId
+    ?.flatMap((activity) => {
       const foundPO = pos.value.find(
         (po) => `${po?.id}` === `${activity?.extPurchaseOrderId}`
       );
 
-      // Ambil Inquiry berdasarkan extInquiryId
       const foundInquiry = inquiries?.value?.find(
         (inquiry) => `${inquiry?.id}` === `${activity?.extInquiryId}`
       );
 
-      // Ambil Job berdasarkan extJobId
       const foundJob = jobs.value.jobs?.find(
         (job) =>
           `${job?.masterJavaBaseModel?.id}` === `${activity?.extJobId}`
       );
 
-      // Ambil Panel Code berdasarkan extPanelCodeId
       const foundPanelCode = jobs.value.jobs
         ?.flatMap((job) => job?.panelCodes)
         .find(
@@ -339,75 +363,71 @@ const items = computed(() => {
             `${activity?.extPanelCodeId}`
         );
 
-      // Ambil daftar PIC berdasarkan ID
-      const foundUsers = [
-        ...new Set(
-          activity?.tasks?.flatMap((task) =>
-            task?.inCharges.map((charge) => charge.extUserId)
-          )
-        ),
-      ]
-        .map((id) => users.value?.find((user) => `${user?.id}` === `${id}`)?.name)
-        .join(", ");
+      return activity.tasks.map((task) => {
+        const foundUsers = [
+          ...new Set(task?.inCharges.map((charge) => charge.extUserId)),
+        ]
+          .map((id) => users.value?.find((user) => `${user?.id}` === `${id}`)?.name)
+          .join(", ");
 
-      // Format customer: Prioritaskan dari `activity.customer`, lalu PO, lalu Inquiry
-      const customer = activity?.customer || foundPO?.account?.name || foundInquiry?.customer?.name || "Belum Memilih";
+        const customer =
+          activity?.customer ||
+          foundPO?.account?.name ||
+          foundInquiry?.customer?.name ||
+          "Belum Memilih";
 
-      // Format tanggal done
-      const formatDoneDate = (date) =>
-        date
-          ? new Date(date).toLocaleDateString("id-ID", {
+        const formatDoneDate = (date) =>
+          date
+            ? new Date(date).toLocaleDateString("id-ID", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              })
+            : "-";
+
+        const doneAll =
+          task.completedDatePic &&
+          task.completedDateSpv &&
+          task.completedDateManager;
+
+        const doneOuts = doneAll ? "Done" : "Outs (0/1)";
+
+        const daysDeadline = (() => {
+          if (activity?.toCache) {
+            const deadlineDate = new Date(activity.toCache);
+            const remainingDays = Math.round(
+              (deadlineDate.getTime() - new Date().getTime()) / 86400000
+            );
+            return `${deadlineDate.toLocaleDateString("id-ID", {
               day: "2-digit",
               month: "long",
               year: "numeric",
-            })
-          : "-";
+            })} (${remainingDays} hari)`;
+          }
+          return "-";
+        })();
 
-      const donePic = activity?.tasks?.find(
-        (task) => task.completedDatePic
-      )?.completedDatePic;
-      const doneSpv = activity?.tasks?.find(
-        (task) => task.completedDateSpv
-      )?.completedDateSpv;
-      const doneManager = activity?.tasks?.find(
-        (task) => task.completedDateManager
-      )?.completedDateManager;
-
-      // Format deadline dengan jumlah hari tersisa
-      const daysDeadline = (() => {
-        if (activity?.toCache) {
-          const deadlineDate = new Date(activity.toCache);
-          const remainingDays = Math.round(
-            (deadlineDate.getTime() - new Date().getTime()) / 86400000
-          );
-          return `${deadlineDate.toLocaleDateString("id-ID", {
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })} (${remainingDays} hari)`;
-        }
-        return "-";
-      })();
-
-      return {
-        customer, // Perbaikan customer agar muncul
-        po: foundPO?.purchaseOrderNumber || "-",
-        inquiry: foundInquiry ? `${foundInquiry?.inquiryNumber}` : "-",
-        doneOuts,
-        project: foundJob?.name || "-",
-        product: foundPanelCode
-          ? `${foundPanelCode?.type}: ${foundPanelCode?.name}`
-          : "-",
-        type: activity?.type || "-",
-        daysDeadline,
-        donePic: formatDoneDate(donePic),
-        doneSpv: formatDoneDate(doneSpv),
-        doneManager: formatDoneDate(doneManager),
-        tasks: totalTasks || "-",
-      };
+        return {
+          description: task.description ?? "-",
+          customer,
+          po: foundPO?.purchaseOrderNumber || "-",
+          inquiry: foundInquiry ? `${foundInquiry?.inquiryNumber}` : "-",
+          doneOuts,
+          project: foundJob?.name || "-",
+          product: foundPanelCode
+            ? `${foundPanelCode?.type}: ${foundPanelCode?.name}`
+            : "-",
+          type: activity?.type || "-",
+          hours: task.hours ?? 0,
+          daysDeadline,
+          donePic: formatDoneDate(task.completedDatePic),
+          doneSpv: formatDoneDate(task.completedDateSpv),
+          doneManager: formatDoneDate(task.completedDateManager),
+          tasks: 1,
+        };
+      });
     })
     ?.filter((item) => {
-      // Filter berdasarkan status Done/Outs
       if (isCompleted.value !== null) {
         if (isCompleted.value === true && item.doneOuts !== "Done") {
           return false;
@@ -417,7 +437,6 @@ const items = computed(() => {
         }
       }
 
-      // Filter berdasarkan type
       if (
         selectedActivityType.value &&
         item.type !== selectedActivityType.value
@@ -428,6 +447,7 @@ const items = computed(() => {
       return true;
     });
 });
+
 
 </script>
 
