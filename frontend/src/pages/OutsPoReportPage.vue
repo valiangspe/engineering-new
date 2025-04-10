@@ -10,90 +10,59 @@
         </v-col>
       </v-row>
 
-      <div class="d-flex align-items-end">
-        <div class="me-2">
-          <div>Month</div>
-          <v-autocomplete
-            :items="months"
-            :item-title="(item) => item.label"
-            :model-value="months.find((m) => m.value === selectedMonth)"
-            @update:model-value="
-              (selected) => {
-                selectedMonth = selected;
-                fetchEngineeringActivitiesData();
-              }
-            "
-            style="width: 150px"
-          ></v-autocomplete>
+      <div class="d-flex align-items-end flex-wrap" style="gap: 12px">
+        <div style="width: 180px">
+          <v-text-field
+            v-model="from"
+            label="From"
+            type="date"
+            density="compact"
+            variant="outlined"
+            hide-details
+            @blur="fetchEngineeringActivitiesData"
+          />
         </div>
-        <div class="me-2" style="width: 150px">
-          <div>Year</div>
-          <v-autocomplete
-            class="w-100"
-            :items="years"
-            :item-title="(item) => item.label"
-            :model-value="years.find((y) => y.value === selectedYear)"
-            @update:model-value="
-              (selected) => {
-                selectedYear = selected;
-                fetchEngineeringActivitiesData();
-              }
-            "
-          ></v-autocomplete>
+        <div style="width: 180px">
+          <v-text-field
+            v-model="to"
+            label="To"
+            type="date"
+            density="compact"
+            variant="outlined"
+            hide-details
+            @blur="fetchEngineeringActivitiesData"
+          />
         </div>
-        <div class="me-2" style="width: 150px">
-          <div>Type</div>
+        <div style="width: 180px">
           <v-autocomplete
-            class="w-100"
-            :items="activityTypes.map((t) => ({ label: t, value: t }))"
-            :item-title="(item) => item.label"
-            :model-value="
-              activityTypes
-                .map((t) => ({ label: t, value: t }))
-                .find((t) => t.value === selectedActivityType)
-            "
-            @update:model-value="
-              (selected) => {
-                selectedActivityType = selected;
-                // fetchEngineeringActivitiesData();
-              }
-            "
-          ></v-autocomplete>
+            label="Type"
+            v-model="selectedActivityType"
+            :items="activityTypes"
+            item-title="label"
+            item-value="value"
+            density="compact"
+            variant="outlined"
+            hide-details
+          />
         </div>
-
-        <div class="me-2" style="width: 150px">
-          <div>Status</div>
+        <div style="width: 180px">
           <v-autocomplete
-            class="w-100"
+            label="Status"
+            v-model="isCompleted"
             :items="[
               { label: 'All', value: null },
               { label: 'Outs', value: false },
               { label: 'Done', value: true },
             ]"
-            :item-title="(item) => item.label"
-            :model-value="
-              [
-                { label: 'All', value: null },
-                { label: 'Outs', value: false },
-                { label: 'Done', value: true },
-              ].find((t) => `${t.value}` === `${isCompleted}`)
-            "
-            @update:model-value="
-              (selected) => {
-                // alertx(selected);
-                isCompleted = selected;
-                // fetchEngineeringActivitiesData();
-              }
-            "
-          ></v-autocomplete>
+            item-title="label"
+            item-value="value"
+            density="compact"
+            variant="outlined"
+            hide-details
+          />
         </div>
-
-        <!-- <div class="mx-2">
-        <button class="btn btn-sm btn-primary" @click="dialog = true">
-          <v-icon icon="mdi-plus" /> Add
-        </button>
-      </div> -->
       </div>
+
     </div>
     <v-row>
       <v-col>
@@ -182,6 +151,7 @@ const exportToExcel = async () => {
   link.click();
 };
 
+const selectedActivityType = ref(null); // default: All
 
 
 const users = ref([]);
@@ -191,10 +161,15 @@ const pos = ref([]);
 const jobs = ref([]);
 const inquiries = ref([]);
 // const task = ref ([]);
-const selectedActivityType = ref("PostPO");
+// const selectedActivityType = ref("PostPO");
 const isCompleted = ref(false);
 
-const activityTypes = ["PrePO", "PostPO", "Others"];
+const activityTypes = [
+  { label: "All", value: null },  // ✅ Tambahkan ini
+  { label: "PrePO", value: "PrePO" },
+  { label: "PostPO", value: "PostPO" },
+  { label: "Others", value: "Others" }
+];
 
 const fetchPosData = async () => {
   const d = await fetchExtCrmPurchaseOrdersProtoSimple();
@@ -239,8 +214,20 @@ const fetchTaskById = async (taskId) => {
 
 
 // Create refs for selected month and year
-const selectedMonth = ref(new Date().getMonth());
-const selectedYear = ref(new Date().getFullYear());
+// const selectedMonth = ref(new Date().getMonth());
+// const selectedYear = ref(new Date().getFullYear());
+
+// FILTER FROM TO
+const from = ref(new Date().toISOString().slice(0, 10));
+const to = ref(new Date().toISOString().slice(0, 10));
+const fetchEngineeringActivitiesData = async () => {
+  const d = await fetchEngineeringActivities({
+    from: new Date(`${from.value}T00:00:00`).toISOString(),
+    to: new Date(`${to.value}T23:59:39`).toISOString(),
+  });
+  activities.value = d;
+};
+
 
 const requiredRule = [(v) => !!v || "Required."];
 
@@ -271,26 +258,18 @@ const years = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i).map(
 );
 
 // Compute the first and last day of the selected month
-const dateRange = computed(() => {
-  console.log(selectedYear.value, selectedMonth.value);
-  const firstDay = new Date(selectedYear.value, selectedMonth.value, 1);
-  const lastDay = new Date(selectedYear.value, selectedMonth.value + 1, 0);
+// const dateRange = computed(() => {
+//   console.log(selectedYear.value, selectedMonth.value);
+//   const firstDay = new Date(selectedYear.value, selectedMonth.value, 1);
+//   const lastDay = new Date(selectedYear.value, selectedMonth.value + 1, 0);
 
-  console.log(firstDay, lastDay);
-  return {
-    from: firstDay.toISOString().split("T")[0],
-    to: lastDay.toISOString().split("T")[0],
-  };
-});
+//   console.log(firstDay, lastDay);
+//   return {
+//     from: firstDay.toISOString().split("T")[0],
+//     to: lastDay.toISOString().split("T")[0],
+//   };
+// });
 
-const fetchEngineeringActivitiesData = async () => {
-  const d = await fetchEngineeringActivities({
-    from: new Date(`${dateRange.value.from}T00:00:00`).toISOString(),
-    to: new Date(`${dateRange.value.to}T23:59:39`).toISOString(),
-  });
-  console.log("Engineering Activities:", d); // Debug log
-  activities.value = d;
-};
 
 const fetchJobsProtoSimpleData = async () => {
   const d = await fetchJobsProtoSimple({ all: true, withProducts: true });
@@ -438,12 +417,11 @@ const items = computed(() => {
       }
 
       if (
-        selectedActivityType.value &&
+        selectedActivityType.value !== null &&
         item.type !== selectedActivityType.value
       ) {
         return false;
       }
-
       return true;
     });
 });

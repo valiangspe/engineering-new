@@ -1611,7 +1611,7 @@ namespace SupportReportAPI.Models
         public int? Type { get; set; } // 0 = penambahan, 1 = pengurangan
         public int? ExtUserId { get; set; }
         public List<EngineeringDetailProblemItem>? Items { get; set; }
-        public int? TypeEcnCcn { get; set; } // 0 = ecn, 1 = ccn
+        public int? TypeEcnCcn { get; set; } // 0 = ecn, 1 = ccn, 2 = other, 3 = fab
         public List<EngineeringDetailProblemApproval>? Approvals { get; set; }
         public int? ExtPanelCodeId { get; set; }
 

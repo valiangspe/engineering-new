@@ -593,6 +593,20 @@ const foundItem = computed(() => {
           Others
         </button>
       </div>
+      <div class="mx-1">
+        <button
+          :class="`btn btn-sm ${
+            ecn?.typeEcnCcn === 3 ? `btn-primary` : `btn-outline-primary`
+          }`"
+          @click="
+            () => {
+              ecn = { ...ecn, typeEcnCcn: 3 };
+            }
+          "
+        >
+          FAB
+        </button>
+      </div>
     </div>
   </div>
   <div>

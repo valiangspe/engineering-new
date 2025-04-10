@@ -622,22 +622,49 @@ const exportToExcel = async () => {
 // };
 const handleSave = async () => {
   try {
-    // Periksa apakah customer sudah dipilih
-    // if (!form.value.selectedCustomerId || !form.value.customer) {
-    //   console.warn("Customer belum dipilih.");
-    //   return;
-    // }
-
-    // Pastikan data tidak berbentuk reactive Vue
     const updatedForm = JSON.parse(JSON.stringify(form.value));
 
-    // Tambahkan customerId dengan nilai yang pasti
-    updatedForm.customerId = form.value.selectedCustomerId;
+    // Validasi khusus jika tipe "Others"
+    if (form.value.type === "Others") {
+      if (!form.value.selectedCustomerId) {
+        alert("Pilih customer terlebih dahulu!");
+        return;
+      }
 
-    // Pastikan format customer string tetap ada
-    updatedForm.customer = form.value.customer
-    ? `${form.value.customer.businessType} ${form.value.customer.name}`
-    : null;
+      const cust = customers.value.find(c => c.id === form.value.selectedCustomerId);
+      if (!cust) {
+        alert("Data customer tidak valid!");
+        return;
+      }
+
+      updatedForm.customer = `${cust.businessType} ${cust.name}`;
+      updatedForm.customerId = cust.id;
+
+      // Update ke form agar tampilannya konsisten
+      form.value.customer = updatedForm.customer;
+    }
+
+    // Untuk PrePO
+    else if (form.value.type === "PrePO") {
+      const inquiry = inquiries.value.find(i => `${i.id}` === `${form.value.extInquiryId}`);
+      updatedForm.customer = inquiry?.account?.name || null;
+      updatedForm.customerId = null;
+    }
+
+    // Untuk PostPO
+    else if (form.value.type === "PostPO") {
+      const po = pos.value.find(p => `${p.id}` === `${form.value.extPurchaseOrderId}`);
+      updatedForm.customer = po?.account?.name || null;
+      updatedForm.customerId = null;
+    }
+
+    // Normalisasi setiap task
+    updatedForm.tasks = updatedForm.tasks.map(task => ({
+      ...task,
+      completedByPicId: task.completedByPicId || null,
+      completedBySpvId: task.completedBySpvId || null,
+      completedByManagerId: task.completedByManagerId || null,
+    }));
 
     const resp = await fetch(
       `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities`,
@@ -648,19 +675,26 @@ const handleSave = async () => {
       }
     );
 
-    if (resp.ok) {
-      console.log("Activity saved successfully.");
-    }
-    if (updatedForm.customer && typeof updatedForm.customer === 'object') {
-      updatedForm.customer = `${updatedForm.customer.businessType} ${updatedForm.customer.name}`;
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      console.error("Gagal menyimpan:", resp.status, errorText);
+      return;
     }
 
+    console.log("Activity saved successfully.");
     dialog.value = false;
+
+    // Reset form
     form.value = { ...defaultForm };
+    form.value.selectedCustomerId = null;
+    form.value.customer = null;
+
+    await fetchEngineeringActivitiesData();
   } catch (error) {
     console.error("Error saat menyimpan task:", error);
   }
 };
+
 
 
 const filterUsersByDepartment = () => {
@@ -920,7 +954,10 @@ const alertx = (content) => {
               }}
             </td>
             <td class="border border-dark p-0 m-0">
-              {{ typeof a?.customer === 'string' ? a.customer : `${a?.customer?.businessType} ${a?.customer?.name}` || 'Belum Memilih' }}
+              {{ a?.customer && typeof a.customer === 'object'
+                ? `${a.customer?.businessType ?? ''} ${a.customer?.name ?? ''}`
+                : a.customer || 'Belum Memilih'
+              }}
             </td>
             <td class="border border-dark p-0 m-0">
               {{
@@ -1061,7 +1098,7 @@ const alertx = (content) => {
             />
             <strong>PO Type</strong>
 
-            <v-autocomplete
+            <!-- <v-autocomplete
               :items="activityTypes.map((t) => ({ label: t, value: t }))"
               :item-title="(t) => t?.label"
               :modelValue="form?.type"
@@ -1080,7 +1117,18 @@ const alertx = (content) => {
                   }
                 }
               "
-            ></v-autocomplete>
+            ></v-autocomplete> -->
+            <v-autocomplete
+              v-model="form.type"
+              :items="activityTypes.map((t) => ({ label: t, value: t }))"
+              item-title="label"
+              item-value="value"
+              label="PO Type"
+              variant="outlined"
+              hide-details
+            />
+
+
 
 
 
@@ -1105,29 +1153,20 @@ const alertx = (content) => {
             </div>
             <div>
               <v-autocomplete
-                :items="customers?.map((customer) => ({
-                  label: `${customer.businessType} ${customer.name}`,
-                  value: customer,
+                v-model="form.selectedCustomerId"
+                :items="customers.map(c => ({
+                  label: `${c.businessType} ${c.name}`,
+                  value: c.id
                 }))"
-                :item-title="(item) => item.label"
-                v-model="form.customer"
-                @update:model-value="
-                  (newType) => {
-                    const prevCustomer = form.customer;  // Simpan customer sebelum perubahan
-                    const prevCustomerId = form.selectedCustomerId;
-
-                    form.type = newType;
-
-                    // Kembalikan customer jika sebelumnya ada
-                    if (prevCustomerId && prevCustomer) {
-                      form.customer = prevCustomer;
-                      form.selectedCustomerId = prevCustomerId;
-                    }
-                  }
-                "
+                item-title="label"
+                item-value="value"
                 label="Select a customer or company"
                 outlined
-              ></v-autocomplete>
+                @update:model-value="val => {
+                  const selected = customers.find(c => c.id === val);
+                  form.customer = selected ? `${selected.businessType} ${selected.name}` : null;
+                }"
+              />
             </div>
           </template>
           
@@ -1192,28 +1231,17 @@ const alertx = (content) => {
 
             <div>
               <v-autocomplete
-                :items="
-                  inquiries?.map((i) => ({
-                    label: `${i?.inquiryNumber} - ${i?.account?.name}`,
-                    value: i,
-                  }))
-                "
-                :item-title="(j) => j?.label"
-                :modelValue="
-                  form?.extInquiryId
-                    ? inquiries?.find(
-                        (t) => `${t?.id}` === `${form?.extInquiryId}`
-                      )
-                    : null
-                "
-                @update:modelValue="
-                  (a) => {
-                    form.extInquiryId = a?.id;
+                v-model="form.extInquiryId"
+                :items="inquiries.map(i => ({
+                  label: `${i.inquiryNumber} - ${i.account?.name}`,
+                  value: i.id
+                }))"
+                item-title="label"
+                item-value="value"
+                label="Inquiry"
+                outlined
+              />
 
-                    // alertx(a?.id);
-                  }
-                "
-              ></v-autocomplete>
               <!-- {{ form?.extInquiryId }} -->
             </div>
           </template>
@@ -1226,24 +1254,17 @@ const alertx = (content) => {
             <div>
                <!-- {{JSON.stringify(form)}} -->
                <v-autocomplete
-                :items="jobs?.jobs?.map((j) => ({ label: j?.name, value: j }))"
-                :item-title="(j) => j?.label"
-                :modelValue="
-                  jobs?.jobs?.find(
-                    (t) =>
-                      `${t?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                  )
-                "
-                @update:modelValue="
-                  (a) => {
-                    form.extJobId = isNaN(
-                      parseInt(a?.masterJavaBaseModel?.id ?? '')
-                    )
-                      ? 0
-                      : parseInt(a?.masterJavaBaseModel?.id ?? '');
-                  }
-                "
-              ></v-autocomplete>
+                  v-model="form.extJobId"
+                  :items="jobs.jobs.map(j => ({
+                    label: j.name,
+                    value: j.masterJavaBaseModel.id
+                  }))"
+                  item-title="label"
+                  item-value="value"
+                  label="Job"
+                  outlined
+                />
+
               <!-- {{ form?.extJobId }} -->
 
             </div>

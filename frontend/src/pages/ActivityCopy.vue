@@ -1,208 +1,307 @@
+<template>
+  <v-container>
+    <div>
+      <v-row>
+        <v-col class="d-flex justify-end mb-2">
+          <v-btn color="primary" @click="exportToExcel">
+            <v-icon left>mdi-download</v-icon>
+            Export to Excel
+          </v-btn>
+          <v-btn color="secondary" class="ml-2" @click="dialogCustomerFixer = true">
+            <v-icon left>mdi-account-plus</v-icon>
+            Add Data Customer
+          </v-btn>
+        </v-col>
+      </v-row>
+
+      <div class="d-flex align-items-end flex-wrap" style="gap: 12px">
+        <div style="width: 180px">
+          <v-text-field
+            v-model="from"
+            label="From"
+            type="date"
+            density="compact"
+            variant="outlined"
+            hide-details
+            @blur="fetchEngineeringActivitiesData"
+          />
+        </div>
+        <div style="width: 180px">
+          <v-text-field
+            v-model="to"
+            label="To"
+            type="date"
+            density="compact"
+            variant="outlined"
+            hide-details
+            @blur="fetchEngineeringActivitiesData"
+          />
+        </div>
+        <div style="width: 180px">
+          <v-autocomplete
+            label="Type"
+            v-model="selectedActivityType"
+            :items="activityTypes"
+            item-title="label"
+            item-value="value"
+            density="compact"
+            variant="outlined"
+            hide-details
+          />
+        </div>
+        <div style="width: 180px">
+          <v-autocomplete
+            label="Status"
+            v-model="isCompleted"
+            :items="[
+              { label: 'All', value: null },
+              { label: 'Outs', value: false },
+              { label: 'Done', value: true },
+            ]"
+            item-title="label"
+            item-value="value"
+            density="compact"
+            variant="outlined"
+            hide-details
+          />
+        </div>
+      </div>
+
+    </div>
+    <v-row>
+      <v-col>
+        <!-- <v-card>
+          <v-card-title class="headline">{{ cardTitle }}</v-card-title>
+          <v-card-text>
+            <v-data-table :headers="headers" :items="items" class="elevation-1">
+              <template v-slot:footer> </template>
+            </v-data-table>
+          </v-card-text>
+        </v-card> -->
+        <v-card>
+          <v-card-title class="headline">{{ cardTitle }}</v-card-title>
+          <v-card-text>
+            <v-data-table :headers="headers" :items="items" class="elevation-1">
+              <template v-slot:item.actions="{ item }">
+                <v-btn
+                  v-if="item.customer === 'Belum Memilih'"
+                  size="small"
+                  color="primary"
+                  @click="openCustomerDialog(item)"
+                >
+                  Add Customer
+                </v-btn>
+              </template>
+            </v-data-table>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
+
+    <!-- Dialog untuk pengisian customer -->
+    <v-dialog v-model="customerDialog" max-width="500">
+      <v-card>
+        <v-card-title>Fix Customer for Task</v-card-title>
+        <v-card-text>
+          <div v-if="selectedTaskForFix?.type === 'PrePO'">
+            <v-btn color="info" block @click="autoFixCustomer('PrePO')">
+              Search Customer by Inquiry ID
+            </v-btn>
+              <p><strong>Task:</strong> {{ selectedTaskForFix?.description }}</p>
+              <p><strong>Type:</strong> {{ selectedActivityForFix?.type }}</p>
+              <p><strong>Inquiry:</strong> {{ selectedActivityForFix?.extInquiryId }}</p>
+
+              <!-- Jika hasil pencarian ditemukan -->
+              <p v-if="foundCustomerPreview"><strong>Preview Customer:</strong> {{ foundCustomerPreview }}</p>
+          </div>
+
+          <div v-if="selectedTaskForFix?.type === 'PostPO'">
+            <v-btn color="info" block @click="autoFixCustomer('PostPO')">
+              Search Customer by PO ID
+            </v-btn>
+              <p><strong>Task:</strong> {{ selectedTaskForFix?.description }}</p>
+              <p><strong>Type:</strong> {{ selectedActivityForFix?.type }}</p>
+              <p><strong>PO:</strong> {{ selectedActivityForFix?.extPurchaseOrderId }}</p>
+                        <!-- Jika hasil pencarian ditemukan -->
+              <p v-if="foundCustomerPreview"><strong>Preview Customer:</strong> {{ foundCustomerPreview }}</p>
+          </div>
+
+          <div v-if="selectedTaskForFix?.type === 'Others'">
+            <v-autocomplete
+              v-model="selectedCustomerForDialog"
+              :items="customers.map(c => ({ label: `${c.businessType} ${c.name}`, value: c }))"
+              item-title="label"
+              item-value="value"
+              label="Select Customer"
+              outlined
+            />
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" @click="saveFixedCustomer">Save</v-btn>
+          <v-btn color="grey" @click="customerDialog = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </v-container>
+</template>
+
 <script setup>
-import { ref, computed , onMounted} from "vue";
-// import { ref } from "vue";
+import ExcelJS from "exceljs";
+import { ref, computed } from "vue";
 import {
+  fetchActivityByTaskId,
   fetchDepartments,
   fetchEngineeringActivities,
   fetchExtCrmPurchaseOrdersProtoSimple,
   fetchInquiries,
   fetchJobsProtoSimple,
   fetchUsers,
-  fetchWoTemplates,
-  getEngineeringActivitiesUrl,
+  // fetchCustomers,
 } from "./fetchers";
-import { intlFormat, makeDateString } from "../helpers";
-import chroma from "chroma-js";
-import { ctx } from "../main";  // Mengimpor ctx untuk mendapatkan role pengguna
-import { useNotificationStore } from "./notificationStore";
-import { v4 as uuidv4 } from 'uuid'; // Tambahkan UUID untuk id unik
-// import { useRouter } from "vue-router"; // Tambahkan import useRouter
-import { useRoute, useRouter } from "vue-router"; // Tambahkan useRouter dan useRoute
 
+const exportToExcel = async () => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Report");
 
-// import { onMounted, ref } from "vue";
-// import { useRoute } from "vue-router";
-import { fetchActivityByTaskId } from "./fetchers"; // Import a new fetch function for fetching by taskId
+  // Tambahkan header
+  worksheet.columns = [
+    { header: "TaskName", key: "description" }, 
+    { header: "Customer", key: "customer" },
+    { header: "PO", key: "po" },
+    { header: "Inquiry", key: "inquiry" },
+    { header: "Done/Outs", key: "doneOuts" },
+    { header: "Project", key: "project" },
+    { header: "Product", key: "product" },
+    { header: "PIC", key: "type" },
+    { header: "Hours", key: "hours" }, 
+    { header: "Done PIC", key: "donePic" },
+    { header: "Done SPV", key: "doneSpv" },
+    { header: "Done Manager", key: "doneManager" },
+    { header: "Days (Deadline)", key: "daysDeadline" },
+    // { header: "Tasks", key: "tasks" },
+  ];
 
-
-const openTaskById = async (taskId) => {
-  // Jika data belum dimuat, panggil API terlebih dahulu
-  if (activities.value.length === 0) {
-    await fetchEngineeringActivitiesData();
-  }
-
-  const foundActivity = activities.value.find(activity =>
-    activity.tasks.some(task => task.id === taskId)
-  );
-
-  if (foundActivity) {
-    selectedActivity.value = foundActivity;
-    dialog.value = true;
-  } else {
-    console.warn(`Task dengan ID ${taskId} tidak ditemukan.`);
-  }
-};
-
-
-
-// Check for taskId in the query params when the component is mounted
-onMounted(() => {
-  const taskId = route.query.taskId;
-  if (taskId) {
-    openTaskById(taskId);
-  }
+  // Tambahkan data
+  // items.value.forEach((item) => {
+  //   worksheet.addRow(item);
+  // });
+  items.value.forEach((item) => {
+  worksheet.addRow({
+    description: item.description,
+    customer: item.customer,
+    po: item.po,
+    inquiry: item.inquiry,
+    doneOuts: item.doneOuts,
+    project: item.project,
+    product: item.product,
+    type: item.type,
+    hours: item.hours,
+    donePic: item.donePic,
+    doneSpv: item.doneSpv,
+    doneManager: item.doneManager,
+    daysDeadline: item.daysDeadline,
+    // tasks: item.tasks,
+  });
 });
 
 
-
-const router = useRouter(); // Inisialisasi router
-
-// Fungsi untuk membuka halaman detail berdasarkan taskId dan engineeringActivityId
-const openTask = (taskId, engineeringActivityId) => {
-  router.push({
-    path: '/wo', // Path menuju halaman detail Anda
-    query: {
-      taskId,
-      engineeringActivityId,
-    },
+  // Simpan file
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
+
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `report_activity_${new Date().toISOString()}.xlsx`;
+  link.click();
 };
 
-
-// import { useRoute } from "vue-router";  // Menambahkan import useRoute
-
-// Metode untuk mengambil engineeringActivityId berdasarkan taskId
-const getEngineeringActivityIdByTaskId = (taskId) => {
-  for (const activity of activities.value) {
-    if (activity.tasks.some(task => task.id === taskId)) {
-      return activity.id; // Kembalikan ID dari engineering activity
-    }
-  }
-  console.warn(`Engineering activity dengan task ID ${taskId} tidak ditemukan.`);
-  return null; // Kembalikan null jika tidak ditemukan
-};
-
-
-
-// Ambil data role dari `ctx` dan `localStorage`
-const userRoles = computed(() => {
-  const ctxRole = ctx?.userRole ? [ctx.userRole] : [];
-  const localStorageRole = localStorage.getItem("userRole") ? [localStorage.getItem("userRole")] : [];
-  return [...new Set([...ctxRole, ...localStorageRole])];
-});
-
-
-
-
-
-// Memuat data aktivitas saat halaman dimuat dan memeriksa apakah ada query taskId
-// onMounted(() => {
-//   const taskId = route.query.taskId;
-//   const engineeringActivityId = route.query.engineeringActivityId;
-//   if (taskId && engineeringActivityId) {
-//     openTaskById(taskId);
-//   }
-// });
-
-
-
-// const openTaskById = (taskId) => {
-//   const foundActivity = activities.value.find(activity => 
-//     activity.tasks.some(task => task.id === taskId)
-//   );
-  
-//   if (foundActivity) {
-//     selectedActivity.value = foundActivity;
-//     dialog.value = true;
-//   } else {
-//     console.warn(`Task dengan ID ${taskId} tidak ditemukan.`);
-//   }
-// };
-
-
-// Fungsi untuk memuat data aktivitas
-const fetchEngineeringActivitiesData = async () => {
-  const d = await fetchEngineeringActivities({
-    from: new Date(`${from.value}T00:00:00`).toISOString(),
-    to: new Date(`${to.value}T23:59:39`).toISOString(),
-    userId: selectedFilterUser.value?.id,
-  });
-  activities.value = d;
-};
-
-
-
-const undoDone = async (task, role) => {
-  try {
-    let previousRole = null;
-
-    if (role === 'spv') {
-      previousRole = 'pic';
-    } else if (role === 'manager') {
-      previousRole = 'spv';
-    }
-
-    // Update notification store dengan role sebelumnya atau set ulang ke null
-    const notificationStore = useNotificationStore();
-    notificationStore.updateNotification(task, previousRole);
-
-    // Simpan perubahan ke backend jika diperlukan
-    await fetch(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/tasks/${task.id}`,
-      {
-        method: 'put',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(task),
-      }
-    );
-
-    console.log(`Task ID ${task.id} undone for role: ${role}`);
-  } catch (error) {
-    console.error('Error undoing task done status:', error);
-  }
-};
-
-
-
-const route = useRoute(); // Menangkap route untuk query parameter
-const activities = ref([]);
+const selectedActivityType = ref(null); // default: All
 const users = ref([]);
+const customers = ref([]);
 const departments = ref([]);
-const dialog = ref(false);
-const selectedActivity = ref(null);
-const woTemplates = ref(null);
+const activities = ref([]);
 const pos = ref([]);
-
-const from = ref(makeDateString(new Date()));
-const to = ref(makeDateString(new Date()));
-
-const defaultForm = {
-  type: "PrePO",
-  tasks: [],
-};
-
-const form = ref({ ...defaultForm });
-
-// const users = ref([{ id: 1, name: "valian" }]);
-const activityTypes = ref(["PrePO", "PostPO", "Others"]);
-const inCharges = ref([{ name: "John" }, { name: "Doe" }]);
-const selectedInCharges = ref([]);
-const jobs = ref({});
-const selectedFilterUser = ref(null);
+const jobs = ref([]);
 const inquiries = ref([]);
+// const task = ref ([]);
+// const selectedActivityType = ref("PostPO");
+const isCompleted = ref(false);
+const customerDialog = ref(false);
+const selectedTaskForFix = ref(null);
+const selectedCustomerForDialog = ref(null);
+const selectedActivityForFix = ref(null); // activity dari task tersebut
+const foundCustomerPreview = ref(null); // untuk Preview nama customer hasil pencarian
 
-const requiredRule = [(v) => !!v || "Required."];
 
-const menu = ref(false);
+const openCustomerDialog = async (task) => {
+  // ambil activity yang terkait dengan task ini
+  const activity = activities.value.find(a =>
+    a.tasks?.some(t => t.description === task.description)
+  );
+  if (!activity) return;
 
-const fetchJobsProtoSimpleData = async () => {
-  const d = await fetchJobsProtoSimple({
-    all: true,
-    withProducts: true,
-    withPurchaseOrders: true,
-  });
-  jobs.value = d;
+  selectedTaskForFix.value = task;
+  selectedActivityForFix.value = activity;
+
+  foundCustomerPreview.value = null;
+  selectedCustomerForDialog.value = null;
+
+  if (activity.type === "Others") {
+    await fetchCustomersData(); // fetch manual
+  }
+
+  customerDialog.value = true;
 };
+
+const autoFixCustomer = (type) => {
+  const activity = selectedActivityForFix.value;
+  if (!activity) return;
+
+  if (type === "PrePO") {
+    const inquiry = inquiries.value.find(i => `${i.id}` === `${activity.extInquiryId}`);
+    foundCustomerPreview.value = inquiry?.customer?.name || "Tidak ditemukan";
+  }
+
+  if (type === "PostPO") {
+    const po = pos.value.find(p => `${p.id}` === `${activity.extPurchaseOrderId}`);
+    foundCustomerPreview.value = po?.account?.name || "Tidak ditemukan";
+  }
+};
+
+const saveFixedCustomer = () => {
+  if (!selectedTaskForFix.value || !selectedActivityForFix.value) return;
+
+  if (selectedActivityForFix.value.type === "PrePO" || selectedActivityForFix.value.type === "PostPO") {
+    selectedTaskForFix.value.customer = foundCustomerPreview.value;
+  }
+
+  if (selectedActivityForFix.value.type === "Others" && selectedCustomerForDialog.value) {
+    selectedTaskForFix.value.customer = `${selectedCustomerForDialog.value.businessType} ${selectedCustomerForDialog.value.name}`;
+  }
+
+  customerDialog.value = false;
+};
+const fetchCustomersData = async () => {
+  try {
+    const res = await axios.get("https://crm-local.iotech.my.id/api/external/customers");
+    customers.value = res.data || [];
+  } catch (err) {
+    console.error("Gagal fetch customers:", err);
+    customers.value = [];
+  }
+};
+
+const activityTypes = [
+  { label: "All", value: null },  // ✅ Tambahkan ini
+  { label: "PrePO", value: "PrePO" },
+  { label: "PostPO", value: "PostPO" },
+  { label: "Others", value: "Others" }
+];
 
 const fetchPosData = async () => {
   const d = await fetchExtCrmPurchaseOrdersProtoSimple();
@@ -211,1023 +310,270 @@ const fetchPosData = async () => {
     pos.value = d;
   }
 };
-
-const addTask = () => {
-  form.value = {
-    ...form.value,
-    tasks: [
-      ...form.value.tasks,
-      {
-        from: new Date(`${makeDateString(new Date())}T00:00:00Z`).toISOString(),
-        to: new Date(`${makeDateString(new Date())}T00:00:00Z`).toISOString(),
-      },
-    ],
-  };
-};
-
-const removeTask = (index) => {
-  form.value = {
-    ...form.value,
-    tasks: form.value.tasks.filter((_, i) => i !== index),
-  };
-};
-
-// const submit = handleSubmit((values) => {
-//   console.log("Form submitted:", values);
-// });
-
-const fetchUsersData = async () => {
-  const d = await fetchUsers();
-  console.log("users", d);
-  users.value = d;
-};
-
 const fetchInquiriesData = async () => {
   const d = await fetchInquiries();
   console.log("inquiries", d);
   inquiries.value = d;
 };
 
+// const fetchActivityByTaskId = async () => {
+//   const d = await fetchActivityByTaskId ();
+//   console.log("task",d);
+//   task.value = d;
+// }
+const fetchUsersData = async () => {
+  const d = await fetchUsers();
+  console.log("users", d);
+  users.value = d;
+};
 const fetchDepartmentsData = async () => {
   const d = await fetchDepartments();
   departments.value = d;
 };
+const fetchTaskById = async (taskId) => {
+  try {
+    const res = await fetch(`/api/dashboard/activities/task/${taskId}`);
+    const json = await res.json();
 
-// const fetchEngineeringActivitiesData = async () => {
-//   const d = await fetchEngineeringActivities({
-//     from: new Date(`${from.value}T00:00:00`).toISOString(),
-//     to: new Date(`${to.value}T23:59:39`).toISOString(),
-//     userId: selectedFilterUser.value?.id,
-//   });
-//   activities.value = d;
-// };
-
-const fetchWoTemplatesData = async () => {
-  const d = await fetchWoTemplates();
-  woTemplates.value = d;
+    if (json.length > 0 && json[0].tasks.length > 0) {
+      return json[0].tasks[0].description ?? "-";
+    }
+  } catch (err) {
+    console.error("Gagal mengambil task:", err);
+  }
+  return "-";
 };
 
-const handleDone = async (task, role) => {
-  try {
-    let nextRole = null;
+// Create refs for selected month and year
+// const selectedMonth = ref(new Date().getMonth());
+// const selectedYear = ref(new Date().getFullYear());
 
-    if (role === 'pic' && task.completedDatePic) {
-      nextRole = 'spv';
-    } else if (role === 'spv' && task.completedDateSpv) {
-      nextRole = 'manager';
-    } else if (role === 'manager' && task.completedDateManager) {
-      nextRole = null;
-    }
+// FILTER FROM TO
+const from = ref(new Date().toISOString().slice(0, 10));
+const to = ref(new Date().toISOString().slice(0, 10));
+const fetchEngineeringActivitiesData = async () => {
+  const d = await fetchEngineeringActivities({
+    from: new Date(`${from.value}T00:00:00`).toISOString(),
+    to: new Date(`${to.value}T23:59:39`).toISOString(),
+  });
+  activities.value = d;
+};
 
-    const notificationStore = useNotificationStore();
-    notificationStore.updateNotification(task, nextRole);
 
-    if (nextRole) {
-      notificationStore.addNotification({
-        id: uuidv4(),
-        title: `Task Update: ${task.description}`,
-        message: `Task dengan ID ${task.id} siap untuk dilakukan "done" oleh ${nextRole.toUpperCase()}.`,
-        role: nextRole,
-        taskId: task.id,
-        createdAt: new Date().toLocaleString('id-ID', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        }),
-      });
-    }
+const requiredRule = [(v) => !!v || "Required."];
 
-    console.log(`Task ID ${task.id} updated successfully`);
-  } catch (error) {
-    console.error('Error updating task:', error);
+const menu = ref(false);
+const alertx = (d) => {
+  window.alert(d);
+};
+// Generate months array
+const months = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+].map((month, index) => ({ label: month, value: index }));
+
+// Generate years array (-10 years, current year, +10 years)
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: 21 }, (_, i) => currentYear - 10 + i).map(
+  (year) => ({ label: year.toString(), value: year })
+);
+
+// Compute the first and last day of the selected month
+// const dateRange = computed(() => {
+//   console.log(selectedYear.value, selectedMonth.value);
+//   const firstDay = new Date(selectedYear.value, selectedMonth.value, 1);
+//   const lastDay = new Date(selectedYear.value, selectedMonth.value + 1, 0);
+
+//   console.log(firstDay, lastDay);
+//   return {
+//     from: firstDay.toISOString().split("T")[0],
+//     to: lastDay.toISOString().split("T")[0],
+//   };
+// });
+
+
+const fetchJobsProtoSimpleData = async () => {
+  const d = await fetchJobsProtoSimple({ all: true, withProducts: true });
+
+  if (d) {
+    jobs.value = d;
   }
 };
-
-
-
-const handleSave = async () => {
-  console.log(form.value);
-  try {
-    const updatedTasks = form.value.tasks.map((task) => {
-      let updatedTask = { ...task };
-
-      // Jangan mengubah status 'done' saat mengedit
-      if (!task.completedDatePic) {
-        updatedTask.completedByPicId = task.completedByPicId || null;
-        updatedTask.completedDatePic = task.completedDatePic || null;
-      }
-      if (!task.completedDateSpv) {
-        updatedTask.completedBySpvId = task.completedBySpvId || null;
-        updatedTask.completedDateSpv = task.completedDateSpv || null;
-      }
-      if (!task.completedDateManager) {
-        updatedTask.completedByManagerId = task.completedByManagerId || null;
-        updatedTask.completedDateManager = task.completedDateManager || null;
-      }
-
-      return updatedTask;
-    });
-
-    const updatedForm = {
-      ...form.value,
-      tasks: updatedTasks,
-    };
-
-    const resp = await fetch(
-      `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities`,
-      {
-        method: "post",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(updatedForm),
-      }
-    );
-
-    if (resp.ok) {
-      // Bagian notifikasi dihapus untuk mencegah pengiriman notifikasi
-      /*
-      const notificationStore = useNotificationStore();
-      updatedTasks.forEach((task) => {
-        let nextRole = !task.completedDatePic ? 'pic'
-                     : !task.completedDateSpv ? 'spv'
-                     : !task.completedDateManager ? 'manager'
-                     : null;
-
-        // Tambahkan notifikasi untuk role berikutnya
-        if (nextRole) {
-          notificationStore.addNotification({
-            ...task,
-            id: uuidv4(),
-            role: nextRole,
-          });
-        }
-      });
-      */
-    }
-
-    dialog.value = false;
-    form.value = { ...defaultForm };
-
-    fetchEngineeringActivitiesData();
-  } catch (e) {
-    console.error("Error saat menyimpan task:", e);
-  }
-};
-
-
 
 fetchUsersData();
-fetchEngineeringActivitiesData();
 fetchDepartmentsData();
 fetchJobsProtoSimpleData();
-fetchWoTemplatesData();
-fetchInquiriesData();
+fetchEngineeringActivitiesData();
 fetchPosData();
+fetchInquiriesData();
+fetchTaskById();
 
-const alertx = (content) => {
-  alert(content);
-};
+const headers = ref([
+  { title: "TaskName", value: "description" },  
+  { title: "Customer", value: "customer" },
+  { title: "PO", value: "po" },
+  { title: "Inquiry", value: "inquiry" },
+
+  { title: "Done/Outs", value: "doneOuts" },
+  { title: "Project", value: "project" },
+  { title: "Product", value: "product" },
+  { title: "TYpe", value: "type" },
+  { title: "Hours", value: "hours" },  
+
+  { title: "Done PIC", value: "donePic" },
+  { title: "Done SPV", value: "doneSpv" },
+  { title: "Done Manager", value: "doneManager" },
+
+  { title: "Days (Deadline)", value: "daysDeadline" },
+  { title: "Action", value: "actions", sortable: false }, // Tambahan ini
+  // { title: "Tasks", value: "tasks" },
+]);
+
+const cardTitle = computed(() => {
+  if (isCompleted.value === true) {
+    return "Done";
+  } else if (isCompleted.value === false) {
+    return "Outs";
+  }
+  return "All Activities";
+});
+// const cardtype = computed (() =>{
+// if ()
+// });
+const items = computed(() => {
+  return activities.value
+    ?.flatMap((activity) => {
+      const foundPO = pos.value.find(
+        (po) => `${po?.id}` === `${activity?.extPurchaseOrderId}`
+      );
+
+      const foundInquiry = inquiries?.value?.find(
+        (inquiry) => `${inquiry?.id}` === `${activity?.extInquiryId}`
+      );
+
+      const foundJob = jobs.value.jobs?.find(
+        (job) =>
+          `${job?.masterJavaBaseModel?.id}` === `${activity?.extJobId}`
+      );
+
+      const foundPanelCode = jobs.value.jobs
+        ?.flatMap((job) => job?.panelCodes)
+        .find(
+          (panelCode) =>
+            `${panelCode?.masterJavaBaseModel?.id}` ===
+            `${activity?.extPanelCodeId}`
+        );
+
+      return activity.tasks.map((task) => {
+        const foundUsers = [
+          ...new Set(task?.inCharges.map((charge) => charge.extUserId)),
+        ]
+          .map((id) => users.value?.find((user) => `${user?.id}` === `${id}`)?.name)
+          .join(", ");
+
+        const customer =
+          activity?.customer ||
+          foundPO?.account?.name ||
+          foundInquiry?.customer?.name ||
+          "Belum Memilih";
+
+        const formatDoneDate = (date) =>
+          date
+            ? new Date(date).toLocaleDateString("id-ID", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              })
+            : "-";
+
+        const doneAll =
+          task.completedDatePic &&
+          task.completedDateSpv &&
+          task.completedDateManager;
+
+        const doneOuts = doneAll ? "Done" : "Outs (0/1)";
+
+        const daysDeadline = (() => {
+          if (activity?.toCache) {
+            const deadlineDate = new Date(activity.toCache);
+            const remainingDays = Math.round(
+              (deadlineDate.getTime() - new Date().getTime()) / 86400000
+            );
+            return `${deadlineDate.toLocaleDateString("id-ID", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })} (${remainingDays} hari)`;
+          }
+          return "-";
+        })();
+
+        return {
+          description: task.description ?? "-",
+          customer,
+          po: foundPO?.purchaseOrderNumber || "-",
+          inquiry: foundInquiry ? `${foundInquiry?.inquiryNumber}` : "-",
+          doneOuts,
+          project: foundJob?.name || "-",
+          product: foundPanelCode
+            ? `${foundPanelCode?.type}: ${foundPanelCode?.name}`
+            : "-",
+          type: activity?.type || "-",
+          hours: task.hours ?? 0,
+          daysDeadline,
+          donePic: formatDoneDate(task.completedDatePic),
+          doneSpv: formatDoneDate(task.completedDateSpv),
+          doneManager: formatDoneDate(task.completedDateManager),
+          tasks: 1,
+        };
+      });
+    })
+    ?.filter((item) => {
+      if (isCompleted.value !== null) {
+        if (isCompleted.value === true && item.doneOuts !== "Done") {
+          return false;
+        }
+        if (isCompleted.value === false && item.doneOuts === "Done") {
+          return false;
+        }
+      }
+
+      if (
+        selectedActivityType.value !== null &&
+        item.type !== selectedActivityType.value
+      ) {
+        return false;
+      }
+      return true;
+    });
+});
+
+
 </script>
-<template>
-  <div class="m-3">
-    <div>
-      <div><h4>Activity</h4></div>
-    </div>
-    <div><hr class="border border-dark" /></div>
-    <div class="d-flex align-items-end">
-      <div>
-        <div>From</div>
-        <div>
-          <input
-            :value="from"
-            type="date"
-            class="form-control form-control-sm"
-            @blur="
-              (e) => {
-                from = e.target.value;
 
-                fetchEngineeringActivitiesData();
-              }
-            "
-          />
-        </div>
-      </div>
-      <div>
-        <div>To</div>
-        <div>
-          <input
-            :value="to"
-            type="date"
-            class="form-control form-control-sm"
-            @blur="
-              (e) => {
-                to = e.target.value;
+<style>
+.v-data-table {
+  margin-bottom: 20px;
+}
 
-                fetchEngineeringActivitiesData();
-              }
-            "
-          />
-        </div>
-      </div>
+.v-card {
+  margin-bottom: 20px;
+}
 
-      <div class="mx-2 d-flex align-items-end">
-        <div>
-          <button class="btn btn-sm btn-primary" @click="dialog = true">
-            <v-icon icon="mdi-plus" /> Add
-          </button>
-        </div>
-
-        <div>
-          <a
-            :href="`${getEngineeringActivitiesUrl({
-              from: new Date(`${from}T00:00:00`).toISOString(),
-              to: new Date(`${to}T23:59:39`).toISOString(),
-              excel: true,
-              withUserNames: true,
-            })}`"
-          >
-            <button class="btn btn-sm btn-success">
-              <v-icon icon="mdi-download" /> Download
-            </button>
-          </a>
-        </div>
-
-        <div class="d-flex align-items-end mx-2">
-          <v-autocomplete
-            placeholder="Filter user..."
-            width="300"
-            :items="
-              users.map((t) => ({
-                label: `${t?.name} (${
-                  departments.find((d) => `${d?.id}` === `${t?.departmentId}`)
-                    ?.name
-                })`,
-                value: t,
-              }))
-            "
-            :item-title="(u) => u?.label"
-            @update:model-value="
-              (u) => {
-                selectedFilterUser = u;
-
-                fetchEngineeringActivitiesData();
-              }
-            "
-          ></v-autocomplete>
-        </div>
-      </div>
-    </div>
-    <div
-      class="overflow-auto border border-dark"
-      style="height: 60vh; resize: vertical"
-    >
-      <table class="table table-sm" style="border-collapse: separate">
-        <thead>
-          
-       
-        <tr>
-          <th
-            style="position: sticky; top: 0"
-            class="bg-dark text-light p-0 m-0"
-            v-for="(h, i) in [
-              '#',
-              'Type',
-              'Inquiry',
-              'Job',
-
-              'From',
-              'To',
-              'PIC Depts',
-              'Tasks',
-              'Tasks Done',
-              'TotalHrs',
-              'Action',
-            ]"
-          >
-            {{ h }}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-
-     
-        <tr v-for="(a, i) in activities">
-          <template
-            v-for="d in [
-              { filteredTasks: a?.tasks?.filter((t) => !t?.deletedAt) },
-            ]"
-          >
-            <td class="border border-dark p-0 m-0">{{ i + 1 }}</td>
-            <td class="border border-dark p-0 m-0">{{ a?.type }}</td>
-            <td class="border border-dark p-0 m-0">
-              <template
-                v-for="d in [
-                  {
-                    foundInquiry: inquiries?.find(
-                      (t) => `${t?.id}` === `${a?.extInquiryId}`
-                    ),
-                  },
-                ]"
-                >{{ d?.foundInquiry?.inquiryNumber }} -
-                {{ d?.foundInquiry?.account?.name }}</template
-              >
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{
-                jobs?.jobs?.find(
-                  (j) => `${j?.masterJavaBaseModel?.id}` === `${a?.extJobId}`
-                )?.name
-              }}
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{
-                intlFormat({
-                  date: a?.fromCache?.split("T")?.[0],
-                  dateStyle: "medium",
-                })
-              }}
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{
-                intlFormat({
-                  date: a?.toCache?.split("T")?.[0],
-                  dateStyle: "medium",
-                })
-              }}
-            </td>
-            <td class="border border-dark p-0 m-0">
-              <div>
-                <ul>
-                  <li
-                    v-for="u in [
-                      ...new Set(
-                        d.filteredTasks
-                          ?.flatMap((t) => t?.inCharges)
-                          ?.filter((ic) => !ic?.deletedAt)
-                          ?.map((ic) => ic?.extUserId)
-                          ?.filter((ui) => ui)
-                      ),
-                    ]"
-                  >
-                    <template
-                      v-for="d in [
-                        { user: users.find((ux) => `${ux?.id}` === `${u}`) },
-                      ]"
-                    >
-                      {{ d?.user?.name }}
-                      ({{
-                        departments?.find(
-                          (dx) => `${dx?.id}` === `${d?.user?.departmentId}`
-                        )?.name
-                      }})</template
-                    >
-                  </li>
-                </ul>
-              </div>
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{ d.filteredTasks?.filter((t) => !t?.deletedAt)?.length ?? 0 }}
-            </td>
-            <td class="border border-dark p-0 m-0">
-              <div
-                :style="`background-color: ${chroma
-                  .scale(['red', 'yellow', 'green'])(
-                    (d.filteredTasks?.filter((t) => t?.completedDate)?.length ??
-                      0) / (d.filteredTasks?.length ?? 1)
-                  )
-                  .alpha(0.6)
-                  .hex()}`"
-              >
-                <strong>
-                  {{
-                    d.filteredTasks?.filter((t) => t?.completedDate)?.length ??
-                    0
-                  }}
-                </strong>
-              </div>
-            </td>
-            <td class="border border-dark p-0 m-0">
-              {{
-                d.filteredTasks?.reduce(
-                  (acc, t) => acc + (t?.hours ?? 0),
-                  0.0
-                ) ?? 0
-              }}
-            </td>
-
-
-
-<td class="border border-dark p-0 m-0">
-  <div>
-    <button
-      class="btn btn-sm btn-primary px-1 py-0"
-      @click="openTask(a.tasks[0].id, a.id)"
-    >
-      <v-icon icon="mdi-pencil" /> Edit
-    </button>
-  </div>
-</td>
-
-
-
-
-
-            <!-- <td class="border border-dark p-0 m-0">
-              <div>
-                <button
-                  class="btn btn-sm btn-primary px-1 py-0"
-                  @click= "
-                    async () => {
-                      form = a;
-                      dialog = true;
-                    }
-                  "
-                >
-                  <v-icon icon="mdi-pencil" /> Edit
-                </button>
-              </div>
-            </td> -->
-          </template>
-        </tr>
-      </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- WO dialog -->
-  <div class="text-center pa-4">
-    <v-dialog v-model="dialog" fullscreen>
-      <v-card
-        max-width="400"
-        prepend-icon="mdi-run"
-        title="Create/Edit Activity"
-      >
-        <template v-slot:actions> </template>
-
-        <div class="m-3">
-          <!-- <v-container> -->
-          <div class="w-100">
-            <div class="d-flex">
-              <div class="mx-2">
-                <button class="btn btn-sm btn-primary" @click="() => handleSave()">
-  <v-icon icon="mdi-content-save" /> Save
-</button>
-
-              </div>
-              <div class="mx-2">
-                <button class="btn btn-sm btn-danger" @click="dialog = false">
-                  <v-icon icon="mdi-close" /> Close
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="my-3">
-            <strong>Activity Description</strong>
-            <input
-              placeholder="Description..."
-              class="form-control form-control-sm"
-              label="Description"
-              @blur="
-                (e) => {
-                  form.description = e.target.value;
-                }
-              "
-            />
-            <strong>PO Type</strong>
-
-            <v-autocomplete
-              :items="activityTypes.map((t) => ({ label: t, value: t }))"
-              :item-title="(t) => t?.label"
-              :modelValue="activityTypes.find((t) => t === form?.type)"
-              @update:modelValue="
-                (a) => {
-                  form.type = a;
-                }
-              "
-            ></v-autocomplete>
-          </div>
-
-          <template v-if="form.type === 'PrePO'">
-            <div>
-              <strong>Inquiry</strong>
-            </div>
-
-            <div>
-              <v-autocomplete
-                :items="
-                  inquiries?.map((i) => ({
-                    label: `${i?.inquiryNumber} - ${i?.account?.name}`,
-                    value: i,
-                  }))
-                "
-                :item-title="(j) => j?.label"
-                :modelValue="
-                  form?.extInquiryId
-                    ? inquiries?.find(
-                        (t) => `${t?.id}` === `${form?.extInquiryId}`
-                      )
-                    : null
-                "
-                @update:modelValue="
-                  (a) => {
-                    form.extInquiryId = a?.id;
-
-                    // alertx(a?.id);
-                  }
-                "
-              ></v-autocomplete>
-              <!-- {{ form?.extInquiryId }} -->
-            </div>
-          </template>
-
-          <template v-if="form.type === 'PostPO'">
-            <div>
-              <strong>Job</strong>
-            </div>
-
-            <div>
-              <v-autocomplete
-                :items="jobs?.jobs?.map((j) => ({ label: j?.name, value: j }))"
-                :item-title="(j) => j?.label"
-                :modelValue="
-                  jobs?.jobs?.find(
-                    (t) =>
-                      `${t?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                  )
-                "
-                @update:modelValue="
-                  (a) => {
-                    form.extJobId = isNaN(
-                      parseInt(a?.masterJavaBaseModel?.id ?? '')
-                    )
-                      ? 0
-                      : parseInt(a?.masterJavaBaseModel?.id ?? '');
-                  }
-                "
-              ></v-autocomplete>
-              <!-- {{ form?.extJobId }} -->
-            </div>
-
-            <div>
-              <strong>Product</strong>
-            </div>
-
-            <div>
-              <v-autocomplete
-                :items="
-                  jobs?.jobs
-                    ?.find(
-                      (j) =>
-                        `${j?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                    )
-                    ?.panelCodes?.map((j) => ({
-                      label: `${j?.type} - ${j?.name}`,
-                      value: j,
-                    }))
-                "
-                :item-title="(j) => j?.label"
-                :modelValue="
-                  jobs?.jobs
-                    ?.find(
-                      (j) =>
-                        `${j?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                    )
-                    ?.panelCodes?.find(
-                      (t) =>
-                        `${t?.masterJavaBaseModel?.id}` ===
-                        `${form?.extPanelCodeId}`
-                    )
-                "
-                @update:modelValue="
-                  (a) => {
-                    form.extPanelCodeId = isNaN(
-                      parseInt(a?.masterJavaBaseModel?.id ?? '')
-                    )
-                      ? 0
-                      : parseInt(a?.masterJavaBaseModel?.id ?? '');
-                  }
-                "
-              ></v-autocomplete>
-              <!-- {{ form?.extJobId }} -->
-            </div>
-
-            <div>
-              <strong>Purchase Order</strong>
-            </div>
-
-            <v-autocomplete
-              placeholder="PO.."
-              :items="
-                pos
-                  ?.filter((p) => {
-                    const foundJob = jobs?.jobs?.find(
-                      (t) =>
-                        `${t?.masterJavaBaseModel?.id}` === `${form?.extJobId}`
-                    );
-
-                    return foundJob?.jobPurchaseOrders?.find(
-                      (jp) => `${jp?.extPurchaseOrderId}` === `${p?.id}`
-                    );
-                  })
-                  ?.map((j) => ({
-                    label: `${j?.purchaseOrderNumber} (${j?.account?.name})`,
-                    value: j,
-                  }))
-              "
-              :item-title="(j) => j?.label"
-              :modelValue="
-                pos
-                  ?.map((j) => ({
-                    label: `${j?.purchaseOrderNumber} (${j?.account?.name})`,
-                    value: j,
-                  }))
-                  ?.find(
-                    (t) => `${t?.value?.id}` === `${form?.extPurchaseOrderId}`
-                  )
-              "
-              @update:modelValue="
-                (a) => {
-                  form.extPurchaseOrderId = isNaN(parseInt(a?.id ?? ''))
-                    ? 0
-                    : parseInt(a?.id ?? '');
-                }
-              "
-            ></v-autocomplete>
-          </template>
-
-          <!-- Tasks Table -->
-          <v-row>
-            <v-col cols="12">
-              <h5>Tasks</h5>
-              <div class="d-flex">
-                <div>
-                  <button class="btn btn-primary" @click="() => addTask()">
-                    Add Task
-                  </button>
-                </div>
-                <div class="flex-grow-1">
-                  <v-autocomplete
-                    placeholder="Activity Template..."
-                    :items="
-                      woTemplates?.templates?.map((t) => ({
-                        label: t?.name,
-                        value: t,
-                      }))
-                    "
-                    :item-title="(u) => u?.label"
-                    @update:model-value="
-                      (d) => {
-                        form = { ...form, tasks: [] };
-
-                        form = {
-                          ...form,
-                          tasks: d?.items.map((i) => ({
-                            description: i?.name ?? '',
-                            hours: (i?.workingMins ?? 0) / 60,
-                          })),
-                        };
-                      }
-                    "
-                  ></v-autocomplete>
-                </div>
-              </div>
-              <!-- {{ JSON.stringify(form) }} -->
-              <div class="border border-dark">
-                <table class="table table-sm" style="border-collapse: separate">
-                  <thead>
-                    <tr>
-                      <th
-                        class="bg-dark text-light"
-                        v-for="h in [
-                          '#',
-                          'Description',
-                          'From',
-                          'To',
-                          'Done PIC',
-                          'Done SPV',
-
-                          'Done Mgr',
-
-                          'Hours',
-
-                          'PIC',
-                          'Remark',
-
-                          'Actions',
-                        ]"
-                      >
-                        {{ h }}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="(task, i) in form.tasks?.filter(
-                        (t) => !t?.deletedAt
-                      )"
-                      :key="i"
-                    >
-                      <td class="border border-dark">{{ i + 1 }}</td>
-
-                      <td class="border border-dark">
-                        <textarea
-                          placeholder="Description..."
-                          class="form-control form-control-sm"
-                          :value="task?.description"
-                          @blur="
-                            (e) => {
-                              task.description = e.target.value;
-                            }
-                          "
-                        />
-                      </td>
-                      <td class="border border-dark">
-                        <input
-                          type="date"
-                          class="form-control form-control-sm"
-                          :value="task?.from?.split('T')?.[0]"
-                          @blur="
-                            (e) => {
-                              task.from = `${e.target.value}T00:00:00Z`;
-                            }
-                          "
-                        />
-                      </td>
-                      <td class="border border-dark">
-                        <input
-                          type="date"
-                          class="form-control form-control-sm"
-                          :value="task?.to?.split('T')?.[0]"
-                          @blur="
-                            (e) => {
-                              task.to = `${e.target.value}T00:00:00Z`;
-                            }
-                          "
-                        />
-                      </td>
-                     
-                 <!-- Done PIC -->
-
-<!-- Done PIC -->
-<!-- <td class="border border-dark">
-  <div
-    v-if="
-      !task.completedDatePic &&
-      userRoles.includes('pic') &&
-      task.inCharges.some(ic => ic.extUserId === ctx.user.id)
-    "
-  >
-    <input
-      type="date"
-      class="form-control form-control-sm"
-      @blur="
-        (e) => {
-          task.completedDatePic = new Date().toISOString();
-          task.completedByPicId = ctx?.user?.id;
-          handleDone(task, 'pic'); // Notify and move to the next role
-        }
-      "
-    />
-  </div>
-  <div v-else-if="task.completedDatePic">
-    {{ new Date(task.completedDatePic).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || PIC
-    <button
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDatePic = null;
-          task.completedByPicId = null;
-          undoDone(task, 'pic'); // Undo action and update notification
-        }
-      "
-    >
-      Undo
-    </button>
-  </div>
-</td> -->
-
-
-<td class="border border-dark">
-  <div v-if="!task.completedDatePic && userRoles.includes('pic')">
-    <input
-      type="date"
-      class="form-control form-control-sm"
-      @blur="
-        (e) => {
-          task.completedDatePic = new Date().toISOString();
-          task.completedByPicId = ctx?.user?.id;
-          handleDone(task, 'pic'); // Notify and move to the next role
-        }
-      "
-    />
-  </div>
-  <div v-else-if="task.completedDatePic">
-    {{ new Date(task.completedDatePic).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || PIC
-    <button
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDatePic = null;
-          task.completedByPicId = null;
-          undoDone(task, 'pic'); // Undo action and update notification
-        }
-      "
-    >
-      Undo
-    </button>
-  </div>
-</td>
-
-<!-- Done SPV -->
-<td class="border border-dark">
-  <div v-if="!task.completedDateSpv && task.completedDatePic && userRoles.includes('spv')">
-    <input
-      type="date"
-      class="form-control form-control-sm"
-      @blur="
-        (e) => {
-          task.completedDateSpv = new Date().toISOString();
-          task.completedBySpvId = ctx?.user?.id;
-          handleDone(task, 'spv'); // Notify and move to the next role
-        }
-      "
-    />
-  </div>
-  <div v-else-if="task.completedDateSpv">
-    {{ new Date(task.completedDateSpv).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || SPV
-    <button
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDateSpv = null;
-          task.completedBySpvId = null;
-          undoDone(task, 'spv'); // Undo action and update notification
-        }
-      "
-    >
-      Undo
-    </button>
-  </div>
-</td>
-
-<!-- Done Manager -->
-<td class="border border-dark">
-  <div v-if="!task.completedDateManager && task.completedDateSpv && userRoles.includes('manager')">
-    <input
-      type="date"
-      class="form-control form-control-sm"
-      @blur="
-        (e) => {
-          task.completedDateManager = new Date().toISOString();
-          task.completedByManagerId = ctx?.user?.id;
-          handleDone(task, 'manager'); // Notify task completion
-        }
-      "
-    />
-  </div>
-  <div v-else-if="task.completedDateManager">
-    {{ new Date(task.completedDateManager).toLocaleString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
-    <br /> Done by: {{ ctx?.user?.username }} || Manager
-    <button
-      class="btn btn-sm btn-secondary mt-2"
-      @click="
-        () => {
-          task.completedDateManager = null;
-          task.completedByManagerId = null;
-          undoDone(task, 'manager'); // Undo action and update notification
-        }
-      "
-    >
-      Undo
-    </button>
-  </div>
-</td>
-
-
-                      <td class="border border-dark">
-                        <input
-                          style="width: 75px"
-                          placeholder="Hrs.."
-                          class="form-control form-control-sm"
-                          :value="task?.hours"
-                          @blur="
-                            (e) => {
-                              if (!isNaN(parseFloat(e.target.value))) {
-                                task.hours = parseFloat(e.target.value);
-                              }
-                            }
-                          "
-                        />
-                      </td>
-
-                      <td class="border border-dark">
-                        <v-autocomplete
-                          :items="
-                            users.map((t) => ({
-                              label: `${t?.name} (${
-                                departments.find(
-                                  (d) => `${d?.id}` === `${t?.departmentId}`
-                                )?.name
-                              })`,
-                              value: t,
-                            }))
-                          "
-                          :item-title="(u) => u?.label"
-                          @update:model-value="
-                            (u) => {
-                              if (!task.inCharges) {
-                                task.inCharges = [];
-                              }
-                              task.inCharges = [
-                                ...task.inCharges,
-                                { extUserId: u?.id },
-                              ];
-                            }
-                          "
-                        ></v-autocomplete>
-                        <ol>
-                          <li
-                            v-for="(ic, i) in task?.inCharges?.filter(
-                              (ic) => !ic?.deletedAt
-                            ) ?? []"
-                          >
-                            <template
-                              v-for="d in [
-                                {
-                                  user: users.find(
-                                    (t) => t?.id === ic?.extUserId
-                                  ),
-                                },
-                              ]"
-                            >
-                              <div>
-                                <div>
-                                  {{
-                                    `${d.user?.name} (${
-                                      departments.find(
-                                        (dx) =>
-                                          `${dx?.id}` ===
-                                          `${d?.user?.departmentId}`
-                                      )?.name
-                                    })`
-                                  }}
-                                </div>
-                                <span
-                                  ><button
-                                    @click="
-                                      () => {
-                                        ic.deletedAt = new Date().toISOString();
-                                      }
-                                    "
-                                    class="btn btn-sm btn-outline-danger px-1 py-0"
-                                  >
-                                    Delete
-                                  </button></span
-                                >
-                              </div></template
-                            >
-                          </li>
-                        </ol>
-                      </td>
-                      <td class="border border-dark">
-                        <textarea
-                          placeholder="Remark..."
-                          class="form-control form-control-sm"
-                          :value="task?.remark"
-                          @blur="
-                            (e) => {
-                              task.remark = e.target.value;
-                            }
-                          "
-                        />
-                      </td>
-                      <td class="border border-dark">
-                        <button
-                          class="btn btn-danger btn-sm"
-                          @click="
-                            () => {
-                              task.deletedAt = new Date().toISOString();
-                            }
-                          "
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </v-col>
-          </v-row>
-          <!-- </v-container> -->
-        </div>
-      </v-card>
-    </v-dialog>
-  </div>
-</template>
+.v-data-table {
+  margin-bottom: 20px;
+}
+.v-card {
+  margin-bottom: 20px;
+}
+</style>
