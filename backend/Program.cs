@@ -542,7 +542,35 @@ app.MapDelete("/api/support-engineering-documents/{jobId}", async (AppDbContext 
 //     return Results.Ok(activities);
 // });
 
-// membuka task by id
+// bagian task 
+app.MapPut("/api/dashboard/activities/task/{taskId:int}", async (
+    int taskId,
+    [FromBody] UpdateTaskWithCustomerDto request,
+    AppDbContext db) =>
+{
+    var task = await db.Tasks
+        .Include(t => t.EngineeringActivity)
+        .FirstOrDefaultAsync(t => t.Id == taskId);
+
+    if (task == null)
+        return Results.NotFound("Task not found");
+
+    // Update Task field (opsional sesuai kebutuhan)
+    task.Remark = request.Remark;
+    task.Hours = request.Hours;
+    task.From = request.From;
+    task.To = request.To;
+
+    // Update Customer di parent Activity
+    if (task.EngineeringActivity != null)
+    {
+        task.EngineeringActivity.Customer = request.Customer;
+    }
+
+    await db.SaveChangesAsync();
+    return Results.Ok(new { message = "Task and activity updated successfully." });
+});
+
 app.MapGet("/api/dashboard/activities/task/{taskId:int}", async (
     AppDbContext db,
     int taskId,
@@ -665,6 +693,31 @@ app.MapGet("/api/dashboard/activities/task", async (
     return Results.Ok(tasks);
 });
 
+// batas
+
+// buat ambil data dari incharge by task id 
+// Endpoint untuk mengambil data InCharge berdasarkan taskId
+app.MapGet("/api/dashboard/incharges/{taskId:int}", async (AppDbContext db, int taskId) =>
+{
+    var inCharges = await db.InCharges
+        .Where(ic => ic.TaskId == taskId) // Menyaring berdasarkan TaskId
+        .Include(ic => ic.Task) // Jika diperlukan, bisa ditambahkan relasi ke Task
+        .ToListAsync();
+
+    if (inCharges == null || !inCharges.Any())
+    {
+        return Results.NotFound("InCharge data not found for the given taskId.");
+    }
+
+    return Results.Ok(inCharges.Select(ic => new 
+    {
+        ic.Id,
+        ic.PicName,
+        ic.ExtUserId,  // User ID yang terkait dengan InCharge
+        ic.TaskId, 
+        ic.Task?.Description // Menampilkan deskripsi task yang terkait
+    }));
+});
 // batas
 
 
@@ -936,6 +989,33 @@ app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, Ap
     db.Update(activity);
     await db.SaveChangesAsync();
     return Results.Ok(activity);
+});
+app.MapPut("/api/dashboard/activities/{id}", async (int id, EngineeringActivity updatedActivity, AppDbContext db) =>
+{
+    var existing = await db.EngineeringActivities
+        .Include(e => e.Tasks)
+        .ThenInclude(t => t.InCharges)
+        .FirstOrDefaultAsync(e => e.Id == id);
+
+    if (existing == null)
+        return Results.NotFound("Activity not found");
+
+    // Update field yang boleh diubah
+    existing.Customer = updatedActivity.Customer;
+    existing.Description = updatedActivity.Description;
+    existing.Type = updatedActivity.Type;
+    existing.ExtInquiryId = updatedActivity.ExtInquiryId;
+    existing.ExtPurchaseOrderId = updatedActivity.ExtPurchaseOrderId;
+    existing.ExtJobId = updatedActivity.ExtJobId;
+    existing.ExtPanelCodeId = updatedActivity.ExtPanelCodeId;
+    existing.SupportTableId = updatedActivity.SupportTableId;
+
+    // Optional: bisa update FromCache dan ToCache juga jika task berubah
+    existing.FromCache = updatedActivity.FromCache;
+    existing.ToCache = updatedActivity.ToCache;
+
+    await db.SaveChangesAsync();
+    return Results.Ok(existing);
 });
 
 
@@ -2101,3 +2181,12 @@ public class SupportEngineeringDocumentDto
     public string JobName { get; set; }  // Nama pekerjaan (job)
     public int[] SupportTableIds { get; set; }  // Array of SupportTableId
 }
+public class UpdateTaskWithCustomerDto
+{
+    public string? Customer { get; set; }
+    public string? Remark { get; set; }
+    public double? Hours { get; set; }
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+}
+
