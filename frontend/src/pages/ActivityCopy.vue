@@ -66,92 +66,20 @@
     </div>
     <v-row>
       <v-col>
-        <!-- <v-card>
+        <v-card>
           <v-card-title class="headline">{{ cardTitle }}</v-card-title>
           <v-card-text>
             <v-data-table :headers="headers" :items="items" class="elevation-1">
               <template v-slot:footer> </template>
             </v-data-table>
           </v-card-text>
-        </v-card> -->
-        <v-card>
-          <v-card-title class="headline">{{ cardTitle }}</v-card-title>
-          <v-card-text>
-            <v-data-table :headers="headers" :items="items" class="elevation-1">
-              <template v-slot:item.actions="{ item }">
-                <v-btn
-                  v-if="item.customer === 'Belum Memilih'"
-                  size="small"
-                  color="primary"
-                  @click="openCustomerDialog(item)"
-                >
-                  Add Customer
-                </v-btn>
-              </template>
-            </v-data-table>
-          </v-card-text>
         </v-card>
       </v-col>
     </v-row>
-
-
-    <!-- Dialog untuk pengisian customer -->
-    <v-dialog v-model="customerDialog" max-width="500">
-      <v-card>
-        <v-card-title>Fix Customer for Task</v-card-title>
-        <v-card-text>
-          <div v-if="selectedTaskForFix?.type === 'PrePO'">
-            <v-btn color="info" block @click="autoFixCustomer('PrePO')">
-              Search Customer by Inquiry ID
-            </v-btn>
-              <p><strong>Task:</strong> {{ selectedTaskForFix?.description }}</p>
-              <p><strong>Type:</strong> {{ selectedActivityForFix?.type }}</p>
-              <p><strong>Inquiry:</strong> {{ selectedActivityForFix?.extInquiryId }}</p>
-
-              <!-- Jika hasil pencarian ditemukan -->
-              <p v-if="foundCustomerPreview"><strong>Preview Customer:</strong> {{ foundCustomerPreview }}</p>
-          </div>
-
-          <div v-if="selectedTaskForFix?.type === 'PostPO'">
-            <v-btn color="info" block @click="autoFixCustomer('PostPO')">
-              Search Customer by PO ID
-            </v-btn>
-              <p><strong>Task:</strong> {{ selectedTaskForFix?.description }}</p>
-              <p><strong>Type:</strong> {{ selectedActivityForFix?.type }}</p>
-              <p><strong>PO:</strong> {{ selectedActivityForFix?.extPurchaseOrderId }}</p>
-                        <!-- Jika hasil pencarian ditemukan -->
-              <p v-if="foundCustomerPreview"><strong>Preview Customer:</strong> {{ foundCustomerPreview }}</p>
-          </div>
-
-          <div v-if="selectedTaskForFix?.type === 'Others'">
-            <v-autocomplete
-              v-model="selectedCustomerForDialog"
-              :items="customers.map(c => ({ label: `${c.businessType} ${c.name}`, value: c }))"
-              item-title="label"
-              item-value="value"
-              label="Select Customer"
-              outlined
-            />
-            <div v-if="foundCustomerPreview">
-              <v-alert type="info" class="mt-2">
-                Found Customer: <strong>{{ foundCustomerPreview }}</strong>
-              </v-alert>
-            </div>
-
-          </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="primary" @click="saveFixedCustomer">Save</v-btn>
-          <v-btn color="grey" @click="customerDialog = false">Close</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
 <script setup>
-import axios from "axios";
 import ExcelJS from "exceljs";
 import { ref, computed } from "vue";
 import {
@@ -162,8 +90,8 @@ import {
   fetchInquiries,
   fetchJobsProtoSimple,
   fetchUsers,
-  // fetchCustomers,
 } from "./fetchers";
+
 
 const exportToExcel = async () => {
   const workbook = new ExcelJS.Workbook();
@@ -210,8 +138,6 @@ const exportToExcel = async () => {
   });
 });
 
-const res = await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities/task/${taskId}`);
-const data = await res.json();
 
   // Simpan file
   const buffer = await workbook.xlsx.writeBuffer();
@@ -226,8 +152,9 @@ const data = await res.json();
 };
 
 const selectedActivityType = ref(null); // default: All
+
+
 const users = ref([]);
-const customers = ref([]);
 const departments = ref([]);
 const activities = ref([]);
 const pos = ref([]);
@@ -236,146 +163,6 @@ const inquiries = ref([]);
 // const task = ref ([]);
 // const selectedActivityType = ref("PostPO");
 const isCompleted = ref(false);
-const customerDialog = ref(false);
-const selectedTaskForFix = ref(null);
-const selectedCustomerForDialog = ref(null);
-const selectedActivityForFix = ref(null); // activity dari task tersebut
-const foundCustomerPreview = ref(null); // untuk Preview nama customer hasil pencarian
-
-
-const openCustomerDialog = async (task) => {
-  // ambil activity yang terkait dengan task ini
-  const activity = activities.value.find(a =>
-    a.tasks?.some(t => t.description === task.description)
-  );
-  if (!activity) return;
-
-  selectedTaskForFix.value = task;
-  selectedActivityForFix.value = activity;
-
-  foundCustomerPreview.value = null;
-  selectedCustomerForDialog.value = null;
-
-  // if (activity.type === "Others") {
-  //   await fetchCustomersData(); // fetch manual
-  // }
-
-  if (task.type === "Others" && customers.value.length === 0) {
-    await fetchCustomersData(); // Ambil data jika belum ada
-  }
-  customerDialog.value = true;
-};
-
-const autoFixCustomer = (type) => {
-  const act = activities.value.find((a) =>
-    a.tasks?.some((t) => t.description === selectedTaskForFix.value.description)
-  );
-  if (!act) return;
-
-  if (type === "PrePO") {
-    const inquiry = inquiries.value.find(
-      (i) => `${i.id}` === `${act.extInquiryId}`
-    );
-    foundCustomerPreview.value = inquiry?.account?.name || "Belum Memilih";
-  }
-
-  if (type === "PostPO") {
-    const po = pos.value.find(
-      (p) => `${p.id}` === `${act.extPurchaseOrderId}`
-    );
-    foundCustomerPreview.value = po?.account?.name || "Belum Memilih";
-  }
-};
-
-
-// const saveFixedCustomer = () => {
-//   if (selectedTaskForFix.value.type === 'Others' && selectedCustomerForDialog.value) {
-//     selectedTaskForFix.value.customer = `${selectedCustomerForDialog.value.businessType} ${selectedCustomerForDialog.value.name}`;
-//   } else if (
-//     ['PrePO', 'PostPO'].includes(selectedTaskForFix.value.type) &&
-//     foundCustomerPreview.value
-//   ) {
-//     selectedTaskForFix.value.customer = foundCustomerPreview.value;
-//   }
-
-//   customerDialog.value = false;
-//   foundCustomerPreview.value = null;
-//   selectedCustomerForDialog.value = null;
-// };
-
-const saveFixedCustomer = async () => {
-  let newCustomerValue = null;
-
-  if (selectedTaskForFix.value.type === 'Others' && selectedCustomerForDialog.value) {
-    newCustomerValue = `${selectedCustomerForDialog.value.businessType} ${selectedCustomerForDialog.value.name}`;
-  }
-
-  if (selectedTaskForFix.value.type === 'PrePO') {
-    const act = activities.value.find(a =>
-      a.tasks?.some(t => t.description === selectedTaskForFix.value.description)
-    );
-    const inquiry = inquiries.value.find(i => `${i.id}` === `${act?.extInquiryId}`);
-    newCustomerValue = inquiry?.account?.name || 'Belum Memilih';
-  }
-
-  if (selectedTaskForFix.value.type === 'PostPO') {
-    const act = activities.value.find(a =>
-      a.tasks?.some(t => t.description === selectedTaskForFix.value.description)
-    );
-    const po = pos.value.find(p => `${p.id}` === `${act?.extPurchaseOrderId}`);
-    newCustomerValue = po?.account?.name || 'Belum Memilih';
-  }
-
-  // Update task di frontend
-  selectedTaskForFix.value.customer = newCustomerValue;
-
-  const taskId = selectedTaskForFix.value?.id;
-  const activity = activities.value.find(a =>
-    a.tasks?.some(t => t.id === taskId)
-  );
-
-  try {
-    // Gunakan URL yang diambil dari variabel lingkungan
-    await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities/task/${taskId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer: newCustomerValue }),
-    });
-
-    if (activity) {
-      activity.customer = newCustomerValue;
-    }
-
-    console.log('Customer updated successfully');
-  } catch (err) {
-    console.error('Gagal menyimpan customer ke backend:', err);
-    alert('Gagal menyimpan customer. Coba lagi!');
-    return;
-  }
-
-  customerDialog.value = false;
-};
-
-const fetchInChargeData = async (taskId) => {
-  try {
-    const res = await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/incharges/${taskId}`);
-    const data = await res.json();
-    // Proses data InCharge sesuai kebutuhan
-    return data;
-  } catch (error) {
-    console.error("Error fetching InCharge data:", error);
-  }
-};
-
-const fetchCustomersData = async () => {
-  try {
-    const res = await axios.get("https://crm-local.iotech.my.id/api/external/customers");
-    customers.value = res.data || [];
-  } catch (err) {
-    console.error("Gagal fetch customers:", err);
-    customers.value = [];
-  }
-};
 
 const activityTypes = [
   { label: "All", value: null },  // ✅ Tambahkan ini
@@ -425,18 +212,6 @@ const fetchTaskById = async (taskId) => {
   return "-";
 };
 
-// const fetchTaskById = async (taskId) => {
-//   try {
-//     const res = await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities/task/${taskId}`);
-//     if (!res.ok) {
-//       throw new Error(`HTTP error! status: ${res.status}`);
-//     }
-//     const data = await res.json();
-//     return data;
-//   } catch (error) {
-//     console.error("Error fetching task:", error);
-//   }
-// };
 
 // Create refs for selected month and year
 // const selectedMonth = ref(new Date().getMonth());
@@ -523,13 +298,12 @@ const headers = ref([
   { title: "Product", value: "product" },
   { title: "TYpe", value: "type" },
   { title: "Hours", value: "hours" },  
-  { title: "PIC", value: "pic" },  
+
   { title: "Done PIC", value: "donePic" },
   { title: "Done SPV", value: "doneSpv" },
   { title: "Done Manager", value: "doneManager" },
 
   { title: "Days (Deadline)", value: "daysDeadline" },
-  { title: "Action", value: "actions", sortable: false }, // Tambahan ini
   // { title: "Tasks", value: "tasks" },
 ]);
 
@@ -569,15 +343,11 @@ const items = computed(() => {
         );
 
       return activity.tasks.map((task) => {
-        // Mendapatkan nama PIC dari inCharges
-        const picNames = task?.inCharges?.map((charge) => {
-          const user = users.value?.find(
-            (user) => `${user?.id}` === `${charge.extUserId}`
-          );
-          return user ? user.name : null;
-        }).filter(Boolean);  // Hanya ambil nama yang valid
-
-        const pic = picNames.join(", ") || "No PIC Assigned";  // Gabungkan jika ada lebih dari satu PIC
+        const foundUsers = [
+          ...new Set(task?.inCharges.map((charge) => charge.extUserId)),
+        ]
+          .map((id) => users.value?.find((user) => `${user?.id}` === `${id}`)?.name)
+          .join(", ");
 
         const customer =
           activity?.customer ||
@@ -617,7 +387,6 @@ const items = computed(() => {
         })();
 
         return {
-          id: task.id, 
           description: task.description ?? "-",
           customer,
           po: foundPO?.purchaseOrderNumber || "-",
@@ -633,7 +402,6 @@ const items = computed(() => {
           donePic: formatDoneDate(task.completedDatePic),
           doneSpv: formatDoneDate(task.completedDateSpv),
           doneManager: formatDoneDate(task.completedDateManager),
-          pic,  // Menampilkan nama PIC
           tasks: 1,
         };
       });
@@ -658,6 +426,7 @@ const items = computed(() => {
     });
 });
 
+
 </script>
 
 <style>
@@ -665,13 +434,6 @@ const items = computed(() => {
   margin-bottom: 20px;
 }
 
-.v-card {
-  margin-bottom: 20px;
-}
-
-.v-data-table {
-  margin-bottom: 20px;
-}
 .v-card {
   margin-bottom: 20px;
 }

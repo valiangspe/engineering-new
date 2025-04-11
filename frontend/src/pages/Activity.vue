@@ -625,23 +625,29 @@ const handleSave = async () => {
     const updatedForm = JSON.parse(JSON.stringify(form.value));
 
     // Validasi khusus jika tipe "Others"
+    // if (form.value.type === "Others") {
+    //   if (!form.value.selectedCustomerId) {
+    //     alert("Pilih customer terlebih dahulu!");
+    //     return;
+    //   }
+
+    //   const cust = customers.value.find(c => c.id === form.value.selectedCustomerId);
+    //   if (!cust) {
+    //     alert("Data customer tidak valid!");
+    //     return;
+    //   }
+
+    //   updatedForm.customer = `${cust.businessType} ${cust.name}`;
+    //   updatedForm.customerId = cust.id;
+
+    //   // Update ke form agar tampilannya konsisten
+    //   form.value.customer = updatedForm.customer;
+    // }
+        // Validasi untuk type "Others"
     if (form.value.type === "Others") {
-      if (!form.value.selectedCustomerId) {
-        alert("Pilih customer terlebih dahulu!");
-        return;
-      }
-
-      const cust = customers.value.find(c => c.id === form.value.selectedCustomerId);
-      if (!cust) {
-        alert("Data customer tidak valid!");
-        return;
-      }
-
-      updatedForm.customer = `${cust.businessType} ${cust.name}`;
-      updatedForm.customerId = cust.id;
-
-      // Update ke form agar tampilannya konsisten
-      form.value.customer = updatedForm.customer;
+      // Tidak memaksa memilih customer untuk "Others"
+      updatedForm.customer = null; // Tidak mengatur customer jika tidak diperlukan
+      updatedForm.customerId = null; // Jangan set customerId
     }
 
     // Untuk PrePO
@@ -1147,7 +1153,7 @@ const alertx = (content) => {
 </div> -->
 
           </div>
-          <template v-if="form.type === 'Others'">
+          <!-- <template v-if="form.type === 'Others'">
             <div>
               <strong>Select Customer Name</strong>
             </div>
@@ -1168,7 +1174,31 @@ const alertx = (content) => {
                 }"
               />
             </div>
+          </template> -->
+          <template v-if="form.type === 'Others'">
+            <div>
+              <strong>Select Customer Name</strong>
+            </div>
+            <div>
+              <v-autocomplete
+                v-model="form.selectedCustomerId"
+                :items="customers.map(c => ({
+                  label: `${c.businessType} ${c.name}`,
+                  value: c.id
+                }))"
+                item-title="label"
+                item-value="value"
+                label="Select a customer or company"
+                outlined
+                :disabled="form.type !== 'Others'"  
+                @update:model-value="val => {
+                  const selected = customers.find(c => c.id === val);
+                  form.customer = selected ? `${selected.businessType} ${selected.name}` : null;
+                }"
+              />
+            </div>
           </template>
+
           
           <template v-if="form.type === 'PrePO'">
             <div>
