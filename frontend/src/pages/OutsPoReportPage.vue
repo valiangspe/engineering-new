@@ -187,63 +187,65 @@ import {
 } from "./fetchers";
 
 const exportToExcel = async () => {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("Report");
+  try {
+    if (!items.value || items.value.length === 0) {
+      alert("Tidak ada data yang bisa di-export.");
+      return;
+    }
 
-  // Tambahkan header
-  worksheet.columns = [
-    { header: "TaskName", key: "description" }, 
-    { header: "Customer", key: "customer" },
-    { header: "PO", key: "po" },
-    { header: "Inquiry", key: "inquiry" },
-    { header: "Done/Outs", key: "doneOuts" },
-    { header: "Project", key: "project" },
-    { header: "Product", key: "product" },
-    { header: "PIC", key: "type" },
-    { header: "Hours", key: "hours" }, 
-    { header: "Done PIC", key: "donePic" },
-    { header: "Done SPV", key: "doneSpv" },
-    { header: "Done Manager", key: "doneManager" },
-    { header: "Days (Deadline)", key: "daysDeadline" },
-    // { header: "Tasks", key: "tasks" },
-  ];
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Report");
 
-  // Tambahkan data
-  // items.value.forEach((item) => {
-  //   worksheet.addRow(item);
-  // });
-  items.value.forEach((item) => {
-  worksheet.addRow({
-    description: item.description,
-    customer: item.customer,
-    po: item.po,
-    inquiry: item.inquiry,
-    doneOuts: item.doneOuts,
-    project: item.project,
-    product: item.product,
-    type: item.type,
-    hours: item.hours,
-    donePic: item.donePic,
-    doneSpv: item.doneSpv,
-    doneManager: item.doneManager,
-    daysDeadline: item.daysDeadline,
-    // tasks: item.tasks,
-  });
-});
+    // Tambahkan header kolom
+    worksheet.columns = [
+      { header: "TaskName", key: "description" },
+      { header: "Customer", key: "customer" },
+      { header: "PO", key: "po" },
+      { header: "Inquiry", key: "inquiry" },
+      { header: "Done/Outs", key: "doneOuts" },
+      { header: "Project", key: "project" },
+      { header: "Product", key: "product" },
+      { header: "Type", key: "type" },
+      { header: "Hours", key: "hours" },
+      { header: "Done PIC", key: "donePic" },
+      { header: "Done SPV", key: "doneSpv" },
+      { header: "Done Manager", key: "doneManager" },
+      { header: "Days (Deadline)", key: "daysDeadline" },
+    ];
 
-const res = await fetch(`${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities/task/${taskId}`);
-const data = await res.json();
+    // Tambahkan data dari items
+    items.value.forEach((item) => {
+      worksheet.addRow({
+        description: item.description,
+        customer: item.customer,
+        po: item.po,
+        inquiry: item.inquiry,
+        doneOuts: item.doneOuts,
+        project: item.project,
+        product: item.product,
+        type: item.type,
+        hours: item.hours,
+        donePic: item.donePic,
+        doneSpv: item.doneSpv,
+        doneManager: item.doneManager,
+        daysDeadline: item.daysDeadline,
+      });
+    });
 
-  // Simpan file
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
+    // Simpan file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
 
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `report_activity_${new Date().toISOString()}.xlsx`;
-  link.click();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `report_activity_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+  } catch (error) {
+    console.error("Gagal export ke Excel:", error);
+    alert("Export to Excel gagal. Cek console untuk detail.");
+  }
 };
 
 const selectedActivityType = ref(null); // default: All
