@@ -7,7 +7,7 @@ import { createPinia } from "pinia";
 // Vuetify
 import "vuetify/styles";
 
-import role from "../src/pages/addRole.vue"
+import role from "../src/pages/addRole.vue";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 
@@ -44,10 +44,11 @@ import DeptTemplatePage from "./pages/DeptTemplatePage.vue";
 import NotificationsPage from "./pages/Notifications.vue";
 import AIDocumentAnalyzerPage from "./pages/AIDocumentAnalyzerPage.vue";
 import AIDocumentAnalyzerInqPage from "./pages/AIDocumentAnalyzerInqPage.vue";
-import engTimeProcess from "./EngineerTImeProcess.vue"
+import engTimeProcess from "./EngineerTImeProcess.vue";
 import SupportDoc from "./pages/SupportDoc.vue";
 import SupportEngineeringDocument from "./pages/SupportEngineeringDocument.vue";
 import ActivityCopy from "./pages/ActivityCopy.vue";
+import JobOverview from "./pages/JobOverview.vue";
 
 const routes = [
   // dynamic segments start with a colon
@@ -84,20 +85,22 @@ const routes = [
 
   { path: "/notifications", component: NotificationsPage },
 
-  { path: "/addRole", component: role},
-  { path: "/supportDoc", component: SupportDoc }, 
-  { path: "/SupportEngineeringDocument", component: SupportEngineeringDocument }, 
+  { path: "/addRole", component: role },
+  { path: "/supportDoc", component: SupportDoc },
+  {
+    path: "/SupportEngineeringDocument",
+    component: SupportEngineeringDocument,
+  },
 
   { path: "/engineerTimeProcess", component: engTimeProcess },
-  // { 
-  //   path: "/activity/:taskId?", 
-  //   name: "activity", 
-  //   component: Activity, 
+  { path: "/joboverview", component: JobOverview },
+
+  //   path: "/activity/:taskId?",
+  //   name: "activity",
+  //   component: Activity,
   //   props: true,
   //   alias: "/wo" // Alias untuk mendukung /wo
   // },
-  
-
 ];
 
 const router = createRouter({
