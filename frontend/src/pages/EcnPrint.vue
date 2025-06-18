@@ -266,7 +266,7 @@ const foundItem = computed(() => {
           </div>
 
           <div class="d-flex border-bottom border-dark">
-            <div class="col-8 p-2 border-end border-dark">
+            <div class="col-3 p-2 border-end border-dark">
               <div class="d-flex flex-column">
                 <span class="fw-bold">Project Name</span>
                 <span>{{
@@ -278,7 +278,7 @@ const foundItem = computed(() => {
               </div>
             </div>
 
-            <div class="col-4 p-2">
+            <div class="col-3 p-2 border-end border-dark">
               <div class="d-flex flex-column">
                 <span class="fw-bold">Requested By</span>
                 <div class="d-flex justify-content-between">
@@ -302,6 +302,16 @@ const foundItem = computed(() => {
                   >
                 </div>
               </div>
+            </div>
+
+            <div class="col-3 p-2 border-end border-dark">
+              <span class="fw-bold">Margin Before</span>
+              <div>{{ ecn?.marginBefore ? `${ecn?.marginBefore}%` : `` }}</div>
+            </div>
+
+            <div class="col-3 p-2">
+              <span class="fw-bold">Margin After</span>
+              <div>{{ ecn?.marginAfter ? `${ecn?.marginAfter}%` : `` }}</div>
             </div>
           </div>
 

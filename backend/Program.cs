@@ -15,8 +15,8 @@ using SupportReportAPI.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
-var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
-//var connString = "server=127.0.0.1;database=engineer;user=root;password=";
+// var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
+var connString = "server=127.0.0.1;database=engineer;user=gspe;password=gspe-intercon";
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -1702,7 +1702,9 @@ namespace SupportReportAPI.Models
         public string? ApprovalRemark { get; set; }
         public string? ApprovalFileName { get; set; }
         public bool? HasPo { get; set; }
-
+        public double? MarginBefore { get; set; }
+        public double? MarginAfter { get; set; }
+        
     }
 
     public class EngineeringDetailProblemItem : BaseModel

@@ -608,6 +608,42 @@ const foundItem = computed(() => {
         </button>
       </div>
     </div>
+    <div v-if="ecn?.typeEcnCcn === 3">
+      <div>
+        <small><strong>Margin Before</strong></small>
+      </div>
+      <div>
+        <input
+          placeholder="Before..."
+          class="form-control form-control-sm"
+          :value="ecn?.marginBefore"
+          @blur="
+            (e) => {
+              if (!isNaN(parseFloat(e.target.value))) {
+                ecn.marginBefore = parseFloat(e.target.value);
+              }
+            }
+          "
+        />
+      </div>
+      <div>
+        <small><strong>Margin After</strong></small>
+      </div>
+      <div>
+        <input
+          placeholder="After..."
+          class="form-control form-control-sm"
+          :value="ecn?.marginAfter"
+          @blur="
+            (e) => {
+              if (!isNaN(parseFloat(e.target.value))) {
+                ecn.marginAfter = parseFloat(e.target.value);
+              }
+            }
+          "
+        />
+      </div>
+    </div>
   </div>
   <div>
     <v-dialog v-model="dialog">
