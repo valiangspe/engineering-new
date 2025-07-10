@@ -83,6 +83,11 @@
         title="ECN/CCN"
       ></v-list-item>
       <v-list-item
+        href="/#/ncr"
+        prepend-icon="mdi-robot"
+        title="NCR"
+      ></v-list-item>
+      <v-list-item
         href="/#/manpower"
         prepend-icon="mdi-human-male-board"
         title="Manpower"

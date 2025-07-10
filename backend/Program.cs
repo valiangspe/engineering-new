@@ -17,6 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
 var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
 // var connString = "server=127.0.0.1;database=engineer;user=gspe;password=gspe-intercon";
+// var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
