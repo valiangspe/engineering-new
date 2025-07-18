@@ -15,9 +15,9 @@ using SupportReportAPI.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
-var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
+// var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
 // var connString = "server=127.0.0.1;database=engineer;user=gspe;password=gspe-intercon";
-// var connString = "server=127.0.0.1;database=engineer;user=root;password=";
+var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -84,6 +84,7 @@ app.MapPost("/login", async (LoginBody? loginBody) =>
     return token;
 });
 
+// new endpoint
 
 
 // EngineerSupports
@@ -965,6 +966,94 @@ app.MapGet("/api/dashboard/activities/test", async (AppDbContext db) =>
 
     return res;
 });
+
+
+app.MapGet("/api/tasks/byecnccnid/{ecnCcnId}", async (AppDbContext db, int ecnCcnId, bool? includeActivityDetails) =>
+{
+    // Cari semua EngineeringActivity yang terkait dengan ExtEngineeringDetailProblemId ini
+    var activitiesQuery = db.EngineeringActivities
+        .Where(a => a.ExtEngineeringDetailProblemId == ecnCcnId)
+        .AsQueryable();
+
+    // Sertakan Tasks dan InCharges-nya
+    var tasksQuery = activitiesQuery
+        .SelectMany(a => a.Tasks.Where(t => t.DeletedAt == null)) // Ambil tasks dari activities
+        .Include(t => t.InCharges)
+        .AsQueryable();
+
+    // Jika diminta, sertakan detail EngineeringActivity
+    if (includeActivityDetails == true)
+    {
+        tasksQuery = tasksQuery.Include(t => t.EngineeringActivity);
+    }
+
+    var tasks = await tasksQuery.Select(t => new TaskDto
+    {
+        Id = t.Id,
+        Description = t.Description,
+        From = t.From,
+        To = t.To,
+        Hours = t.Hours,
+        Remark = t.Remark,
+        CompletedDatePic = t.CompletedDatePic,
+        CompletedDateSpv = t.CompletedDateSpv,
+        CompletedDateManager = t.CompletedDateManager,
+        CompletedByPicId = t.CompletedByPicId,
+        CompletedBySpvId = t.CompletedBySpvId,
+        CompletedByManagerId = t.CompletedByManagerId,
+        InCharges = t.InCharges.Select(ic => new InChargeDto
+        {
+            Id = ic.Id,
+            ExtUserId = ic.ExtUserId,
+            PicName = ic.PicName
+        }).ToList(),
+        EngineeringActivityId = includeActivityDetails == true ? t.EngineeringActivityId : null,
+        EngineeringActivity = includeActivityDetails == true ? new ActivityDto
+        {
+            Id = t.EngineeringActivity.Id,
+            Description = t.EngineeringActivity.Description,
+            Type = t.EngineeringActivity.Type,
+            Customer = t.EngineeringActivity.Customer,
+            ExtInquiryId = t.EngineeringActivity.ExtInquiryId,
+            ExtPurchaseOrderId = t.EngineeringActivity.ExtPurchaseOrderId,
+            ExtJobId = t.EngineeringActivity.ExtJobId,
+            ExtPanelCodeId = t.EngineeringActivity.ExtPanelCodeId,
+            SupportTableId = t.EngineeringActivity.SupportTableId,
+            FromCache = t.EngineeringActivity.FromCache,
+            ToCache = t.EngineeringActivity.ToCache,
+            // Perhatikan bahwa ExtEngineeringDetailProblemId ada di sini jika Anda menambahkannya
+            // ExtEngineeringDetailProblemId = t.EngineeringActivity.ExtEngineeringDetailProblemId, 
+        } : null
+    }).ToListAsync();
+
+    if (!tasks.Any())
+    {
+        return Results.NotFound($"Tidak ada tugas ditemukan untuk ECN/CCN ID: {ecnCcnId}");
+    }
+
+    // Secara opsional ambil nama pengguna untuk InCharges
+    // Ini sama dengan logika yang sudah ada di endpoint lain
+    if (tasks.Any(t => t.InCharges.Any(ic => string.IsNullOrEmpty(ic.PicName))))
+    {
+        var users = await Fetcher.fetchUsersAsync();
+        foreach (var task in tasks)
+        {
+            foreach (var inCharge in task.InCharges)
+            {
+                if (string.IsNullOrEmpty(inCharge.PicName))
+                {
+                    var foundUser = users.FirstOrDefault(u => u.Id == inCharge.ExtUserId);
+                    inCharge.PicName = foundUser?.Name ?? "";
+                }
+            }
+        }
+    }
+
+    return Results.Ok(tasks);
+});
+
+
+
 app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, AppDbContext db) =>
 {
     // **Perbaikan: Pastikan SupportTableId mendapatkan nilai dari selectedSupportDocId**
@@ -1797,6 +1886,7 @@ namespace SupportReportAPI.Models
         public DateTime? Date { get; set; }
         public List<Task>? Tasks { get; set; }
         public EngineeringActivityType Type { get; set; }
+        public int? ExtEngineeringDetailProblemId { get; set; }
         public DateTime? FromCache { get; set; }
         public DateTime? ToCache { get; set; }
         public int? ExtJobId { get; set; }
@@ -2161,11 +2251,14 @@ public class TaskDto
     public int? CompletedBySpvId { get; set; }
     public int? CompletedByManagerId { get; set; }
     public List<InChargeDto>? InCharges { get; set; }
+    public int? EngineeringActivityId { get; set; }
+    public ActivityDto? EngineeringActivity { get; set; }
 }
 
 public class ActivityDto
 {
     public int? Id { get; set; }
+    public string? Customer { get; set; }
     public string? Description { get; set; }
     public EngineeringActivityType Type { get; set; }
     public int? ExtInquiryId { get; set; }
@@ -2174,7 +2267,7 @@ public class ActivityDto
     public DateTime? ToCache { get; set; }
     public List<TaskDto>? Tasks { get; set; }
     public int? ExtJobId { get; set; }
-
+    public int? ExtEngineeringDetailProblemId { get; set; }
     public int? ExtPanelCodeId { get; set; }
     public int? SupportTableId { get; set; } 
 }
@@ -2192,4 +2285,3 @@ public class UpdateTaskWithCustomerDto
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
 }
-
