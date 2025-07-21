@@ -85,7 +85,37 @@ app.MapPost("/login", async (LoginBody? loginBody) =>
 });
 
 // new endpoint
+app.MapGet("/engineering-notes", async (AppDbContext db, [FromQuery(Name = "type-note")] int? typeNote) =>
+{
+    var query = db.EngineeringDetailProblems.AsQueryable();
 
+    if (typeNote.HasValue)
+    {
+        query = query.Where(e => e.TypeEcnCcn == typeNote.Value);
+    }
+
+    return await query
+        .Select(e => new {
+            e.Id,
+            EngineeringNotes = e.Engineering,
+            TypeNote = e.TypeEcnCcn,
+        })
+        .ToListAsync();
+});
+
+app.MapGet("/engineering-notes/{id}", async (AppDbContext db, int id) =>
+{
+    var note = await db.EngineeringDetailProblems
+        .Where(e => e.Id == id)
+        .Select(e => new {
+            e.Id,
+            EngineerNotes = e.Engineering,
+            TypeNote = e.TypeEcnCcn,
+        })
+        .FirstOrDefaultAsync();
+
+    return note is null ? Results.NotFound() : Results.Ok(note);
+});
 
 // EngineerSupports
 app.MapGet("/engineerSupports", async (AppDbContext db) =>
