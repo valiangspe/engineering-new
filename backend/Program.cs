@@ -15,9 +15,9 @@ using SupportReportAPI.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
-var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
+// var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
 // var connString = "server=127.0.0.1;database=engineer;user=gspe;password=gspe-intercon";
-// var connString = "server=127.0.0.1;database=engineer;user=root;password=";
+var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -59,11 +59,14 @@ using (var scope = app.Services.CreateScope())
 
 // EngineerSupports
 app.MapPost("/login", async (LoginBody? loginBody) =>
-{
-    var client = new HttpClient();
+{     
+    if (loginBody is null || string.IsNullOrEmpty(loginBody.Username) || string.IsNullOrEmpty(loginBody.Password))
+    {
+        return Results.BadRequest("Username and password are required.");
+    }
 
-    var loginUrl = "https://authserver-backend.iotech.my.id/login";
-    var loginData = new
+    var client = new HttpClient();
+    var loginUrl = "https://authserver-backend.iotech.my.id/login";    var loginData = new
     {
         username = loginBody.Username,
         password = loginBody.Password
@@ -81,8 +84,7 @@ app.MapPost("/login", async (LoginBody? loginBody) =>
 
     var token = await response.Content.ReadAsStringAsync();
 
-    return token;
-});
+    return Results.Ok(token);});
 
 // new endpoint
 app.MapGet("/engineering-notes", async (AppDbContext db, [FromQuery(Name = "type-note")] int? typeNote) =>
@@ -107,7 +109,8 @@ app.MapGet("/engineering-notes/{id}", async (AppDbContext db, int id) =>
 {
     var note = await db.EngineeringDetailProblems
         .Where(e => e.Id == id)
-        .Select(e => new {
+        .Select(e => new
+        {
             e.Id,
             EngineerNotes = e.Engineering,
             TypeNote = e.TypeEcnCcn,
@@ -116,6 +119,79 @@ app.MapGet("/engineering-notes/{id}", async (AppDbContext db, int id) =>
 
     return note is null ? Results.NotFound() : Results.Ok(note);
 });
+
+app.MapGet("/engineeringDetailProblems/{id}/all", async (AppDbContext db, int id) =>
+{
+    var ecn = await db.EngineeringDetailProblems
+        .Include(e => e.Items)
+        .Include(e => e.Approvals)
+        .FirstOrDefaultAsync(e => e.Id == id);
+
+    if (ecn is null)
+    {
+        return Results.NotFound($"Engineering Detail Problem dengan ID {id} tidak ditemukan.");
+    }
+
+    var usersTask = Fetcher.fetchUsersAsync();
+    var purchaseOrdersTask = Fetcher.fetchCrmPurchaseOrdersAsync();
+    var itemsTask = Fetcher.fetchPpicItemsAsync();
+
+    await System.Threading.Tasks.Task.WhenAll(usersTask, purchaseOrdersTask, itemsTask);
+    
+    var users = await usersTask;
+    var purchaseOrders = await purchaseOrdersTask;
+    var allItems = await itemsTask;
+
+    var requestedByUser = users.FirstOrDefault(u => u.Id == ecn.ExtUserId);
+    var relatedPO = purchaseOrders.FirstOrDefault(p => p.Id == ecn.ExtPurchaseOrderId);
+
+    var resultDto = new EngineeringDetailProblemAllDataDTO
+    {
+        Id = ecn.Id,
+        No = ecn.No,
+        Tgl = ecn.Tgl,
+        ProjectName = ecn.ProjectName,
+        Engineering = ecn.Engineering,
+        DetailProblem = ecn.DetailProblem,
+        TypeEcnCcn = ecn.TypeEcnCcn,
+        Status = ecn.Status,
+        ApprovalDate = ecn.ApprovalDate,
+        HasPo = ecn.HasPo,
+        CreatedAt = ecn.CreatedAt,
+
+        Items = ecn.Items?.Select(item => {
+            // PERUBAHAN 1: Cari seluruh objek detail part, bukan hanya namanya
+            var partDetail = allItems.FirstOrDefault(i => i.Id == item.ExtItemId);
+
+            return new ItemAllDataDTO
+            {
+                ExtItemId = item.ExtItemId,
+                Qty = item.Qty,
+                SnapshotPrice = item.SnapshotPrice,
+                TypeIncreaseDecrease = item.TypeIncreaseDecrease,
+                PartDetail = partDetail // PERUBAHAN 2: Sisipkan seluruh objeknya di sini
+            };
+        }).ToList(),
+
+        Approvals = ecn.Approvals?.Select(approval => new ApprovalAllDataDTO
+        {
+            ApprovalDate = approval.ApprovalDate,
+            Status = approval.Status,
+            ApprovedBy = users.FirstOrDefault(u => u.Id == approval.ExtUserId)
+        }).ToList(),
+        
+        PurchaseOrder = relatedPO,
+        RequestedBy = requestedByUser
+    };
+
+    return Results.Ok(resultDto);
+});app.MapPost("/engineeringDetailProblems", async (EngineeringDetailProblem engineeringDetailProblem, AppDbContext db) =>
+{
+    db.EngineeringDetailProblems.Update(engineeringDetailProblem);
+    await db.SaveChangesAsync();
+    return Results.Ok(engineeringDetailProblem);
+});
+
 
 // EngineerSupports
 app.MapGet("/engineerSupports", async (AppDbContext db) =>
@@ -235,19 +311,19 @@ app.MapGet("/engineeringDetailProblems/{id}/photo", async (AppDbContext db, int 
 // }
 
 
-app.MapPost("/engineeringDetailProblems", async (EngineeringDetailProblem engineeringDetailProblem, AppDbContext db) =>
-{
-    if (engineeringDetailProblem.Id == 0)
-    {
-        db.EngineeringDetailProblems.Add(engineeringDetailProblem);
-    }
-    else
-    {
-        db.EngineeringDetailProblems.Update(engineeringDetailProblem);
-    }
-    await db.SaveChangesAsync();
-    return Results.Ok(engineeringDetailProblem);
-});
+// app.MapPost("/engineeringDetailProblems", async (EngineeringDetailProblem engineeringDetailProblem, AppDbContext db) =>
+// {
+//     if (engineeringDetailProblem.Id == 0)
+//     {
+//         db.EngineeringDetailProblems.Add(engineeringDetailProblem);
+//     }
+//     else
+//     {
+//         db.EngineeringDetailProblems.Update(engineeringDetailProblem);
+//     }
+//     await db.SaveChangesAsync();
+//     return Results.Ok(engineeringDetailProblem);
+// });
 
 // bomapprovals
 app.MapGet("/bomapprovals", async (AppDbContext db) =>
@@ -1714,6 +1790,57 @@ static void SaveBase64ToFile(string base64String, string filePath)
 
 namespace SupportReportAPI.Models
 {
+
+    // dalam namespace SupportReportAPI.Models
+// dalam namespace SupportReportAPI.Models
+public class PpicItem
+{
+    public int? Id { get; set; }
+    public string? Mfr { get; set; }
+    public string? PartNum { get; set; }
+    public string? PartName { get; set; }
+    public string? PartDesc { get; set; }
+    public string? DefaultUm { get; set; }
+}
+    public class EngineeringDetailProblemAllDataDTO
+    {
+        // Properti dari EngineeringDetailProblem
+        public int? Id { get; set; }
+        public string? No { get; set; }
+        public DateTime? Tgl { get; set; }
+        public string? ProjectName { get; set; }
+        public string? Engineering { get; set; }
+        public string? DetailProblem { get; set; }
+        public int? TypeEcnCcn { get; set; }
+        public int? Status { get; set; }
+        public DateTime? ApprovalDate { get; set; }
+        public bool? HasPo { get; set; }
+        public DateTime? CreatedAt { get; set; }
+
+        // Data relasional yang digabungkan
+        public List<ItemAllDataDTO>? Items { get; set; }
+        public List<ApprovalAllDataDTO>? Approvals { get; set; }
+        public CrmPurchaseOrder? PurchaseOrder { get; set; } // Dari kelas yang sudah ada
+        public AuthserverUser? RequestedBy { get; set; } // Dari kelas yang sudah ada
+    }
+
+    public class ItemAllDataDTO
+    {
+        public int? ExtItemId { get; set; }
+        public PpicItem? PartDetail { get; set; } 
+        public double? Qty { get; set; }
+        public double? SnapshotPrice { get; set; }
+        public int? TypeIncreaseDecrease { get; set; }
+    }
+    
+    public class ApprovalAllDataDTO
+    {
+        public AuthserverUser? ApprovedBy { get; set; }
+        public DateTime? ApprovalDate { get; set; }
+        public int? Status { get; set; }
+    }
+
+
     public class BaseModel
     {
         public DateTime? CreatedAt { get; set; }
@@ -1954,7 +2081,6 @@ namespace SupportReportAPI.Models
         public int? ExtPanelCodeId { get; set; }
 
         // Field baru untuk soft delete
-        public DateTime? DeletedAt { get; set; }
     }
 
     public class InCharge : BaseModel
@@ -2013,8 +2139,7 @@ namespace SupportReportAPI.Models
             public int Id { get; set; }
 
             [Required]
-            public string Name { get; set; }
-
+            public string Name { get; set; } = string.Empty;
             public string? FilePath { get; set; } // Path untuk menyimpan file
         }
 
@@ -2029,9 +2154,6 @@ namespace SupportReportAPI.Models
 
             public string JobName { get; set; }  // Nama pekerjaan (job)
 
-            public DateTime CreatedAt { get; set; }  // Tanggal dan waktu pembuatan
-
-            public DateTime UpdatedAt { get; set; }  // Tanggal dan waktu pembaruan terakhir
         }
 
 
@@ -2116,8 +2238,8 @@ public class JsonDateTimeConverter : JsonConverter<DateTime>
 
 class LoginBody
 {
-    public string Username { get; set; }
-    public string Password { get; set; }
+    public string? Username { get; set; }
+    public string? Password { get; set; }
 }
 class EngDetailProblemPhoto { public string? Photo { get; set; } }
 
@@ -2134,10 +2256,27 @@ class Fetcher
         }
 
         var resp = await response.Content.ReadAsStringAsync();
-
-        // Console.WriteLine(resp);
-
         return JsonSerializer.Deserialize<List<AuthserverUser>>(resp, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+    }
+
+    // FUNGSI YANG HILANG SEBELUMNYA, SEKARANG SUDAH ADA DI SINI
+    public static async Task<List<PpicItem>> fetchPpicItemsAsync()
+    {
+        // URL diperbarui sesuai dengan endpoint yang benar
+        var response = await new HttpClient().GetAsync($"https://ppic-backend.iotech.my.id/ext-items");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            // Jika gagal, tulis pesan error dan kembalikan list kosong agar tidak crash
+            Console.WriteLine($"Gagal mengambil data item dari PPIC: {response.ReasonPhrase}");
+            return new List<PpicItem>();
+        }
+
+        var resp = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<List<PpicItem>>(resp, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         });
@@ -2154,9 +2293,6 @@ class Fetcher
         }
 
         var resp = await response.Content.ReadAsStringAsync();
-
-        // Console.WriteLine($"PO: {resp}" );
-
         return JsonSerializer.Deserialize<List<CrmPurchaseOrder>>(resp, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
@@ -2175,27 +2311,16 @@ class Fetcher
         }
 
         var resp = await response.Content.ReadAsStringAsync();
-
-        // Console.WriteLine($"Inq: {resp}" );
-
         return JsonSerializer.Deserialize<List<Inquiry>>(resp, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         });
     }
-
-
-
-
-
-
 }
-
-
-class AuthserverUser
+public class AuthserverUser
 {
-    public int? Id { get; set; }
-    public string? Name { get; set; }
+    public int? Id { get; set; }
+    public string? Name { get; set; }
 }
 
 public class CrmPurchaseOrder
@@ -2234,8 +2359,7 @@ public class UserRole
 {
     public int Id { get; set; }        // Primary key
     public int UserId { get; set; }     // UserId untuk relasi ke tabel pengguna
-    public string Role { get; set; }    // Role yang dimiliki pengguna (PIC, SPV, Manager)
-}
+public string Role { get; set; } = string.Empty;}
 public class PanelProcess
 {
     [Key]
@@ -2303,9 +2427,9 @@ public class ActivityDto
 }
 public class SupportEngineeringDocumentDto
 {
-    public int JobId { get; set; }  // ID dari pekerjaan yang diambil
-    public string JobName { get; set; }  // Nama pekerjaan (job)
-    public int[] SupportTableIds { get; set; }  // Array of SupportTableId
+    public int JobId { get; set; }
+    public string JobName { get; set; } = string.Empty;
+    public int[] SupportTableIds { get; set; } = Array.Empty<int>();
 }
 public class UpdateTaskWithCustomerDto
 {
