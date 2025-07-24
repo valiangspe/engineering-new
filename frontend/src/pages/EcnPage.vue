@@ -1,57 +1,39 @@
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
-
+import { ref, computed, watch } from "vue";
 import ExcelJS from "exceljs";
 import {
   fetchEngineeringDetailProblems,
   fetchExtCrmPurchaseOrdersProtoSimple,
   fetchItems,
   fetchJobsProtoSimple,
+  fetchUsers,
 } from "./fetchers";
 import axios from "axios";
 import { debounce } from "lodash";
-import { fetchUsers } from "./fetchers"; // Pastikan fungsi fetchUsers sudah tersedia
 
 const ecns = ref([]);
-const users = ref([]); // Menyimpan data pengguna
+const users = ref([]);
 const pos = ref([]);
 const jobs = ref([]);
 const items = ref([]);
+const poSearch = ref("");
+const poSearchDebounced = ref("");
+const ecnCcnFilter = ref("All"); // Diubah defaultnya ke 'All'
 
 const filteredEcns = computed(() => {
-  const byEcnCcn = filteredByEcnCcn.value; // Hasil filter ECN/CCN
-  return byEcnCcn.filter((e) => {
-    const foundPO = posMap.value.get(`${e?.extPurchaseOrderId}`);
-    return (
-      !poSearchDebounced.value ||
-      (foundPO?.purchaseOrderNumber || "")
-        .toLowerCase()
-        .includes(poSearchDebounced.value.toLowerCase())
-    );
-  });
+  return ecns.value
+    .filter((e) => {
+      if (ecnCcnFilter.value === "All") return true;
+      if (ecnCcnFilter.value === "ECN") return e.typeEcnCcn === 0;
+      if (ecnCcnFilter.value === "CCN") return e.typeEcnCcn === 1;
+      return true;
+    })
+    .filter((e) => {
+      const poNum = e.poNumber || "";
+      return poNum.toLowerCase().includes(poSearchDebounced.value.toLowerCase());
+    });
 });
 
-const ecnCcnFilter = ref(null); // null, 'ECN', atau 'CCN'
-
-// Filter ECN/CCN
-const filteredByEcnCcn = computed(() => {
-  return ecns.value.filter((e) => {
-    return (
-      ecnCcnFilter.value === null ||
-      (ecnCcnFilter.value === "ECN" && e.typeEcnCcn === 0) ||
-      (ecnCcnFilter.value === "CCN" && e.typeEcnCcn === 1)
-    );
-  });
-});
-
-// const fetchEngineeringDetailProblemsData = async () => {
-//   const d = await fetchEngineeringDetailProblems();
-
-//   if (d) {
-//     ecns.value = d;
-//   }
-// };
-// Fungsi untuk mengambil data ECN dari API
 const fetchEngineeringDetailProblemsData = async () => {
   try {
     const response = await axios.get(
@@ -59,7 +41,7 @@ const fetchEngineeringDetailProblemsData = async () => {
     );
     if (response.data) {
       ecns.value = Array.isArray(response.data)
-        ? response.data
+        ? response.data.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
         : [response.data];
     }
   } catch (error) {
@@ -69,18 +51,16 @@ const fetchEngineeringDetailProblemsData = async () => {
 
 const fetchUsersData = async () => {
   try {
-    const d = await fetchUsers(); // Fungsi fetchUsers Anda
-    console.log("Users data fetched:", d); // Debug log
-    users.value = Array.isArray(d) ? d : []; // Pastikan data berbentuk array
+    const d = await fetchUsers();
+    users.value = Array.isArray(d) ? d : [];
   } catch (error) {
     console.error("Error fetching users:", error);
-    users.value = []; // Fallback ke array kosong jika terjadi error
+    users.value = [];
   }
 };
 
 const fetchJobsData = async () => {
   const d = await fetchJobsProtoSimple({ all: true });
-
   if (d) {
     jobs.value = d;
   }
@@ -88,17 +68,11 @@ const fetchJobsData = async () => {
 
 const fetchWarehouseItemsData = async () => {
   const d = await fetchItems();
-
   if (d) {
     items.value = d;
   }
 };
 
-// fungsi search
-const poSearch = ref(""); // Input pencarian PO
-const poSearchDebounced = ref(""); // Untuk debounce input PO
-
-// Watcher dengan debounce untuk pencarian PO
 watch(
   poSearch,
   debounce((value) => {
@@ -106,29 +80,6 @@ watch(
   }, 300)
 );
 
-// Pemetaan PO untuk efisiensi pencarian
-const posMap = computed(() => {
-  const map = new Map();
-  pos.value.forEach((p) => {
-    map.set(`${p?.id}`, p);
-  });
-  return map;
-});
-
-// Filter ECN berdasarkan pencarian PO
-const filteredByPo = computed(() => {
-  return ecns.value.filter((e) => {
-    const foundPO = posMap.value.get(`${e?.extPurchaseOrderId}`);
-    return (
-      !poSearchDebounced.value ||
-      (foundPO?.purchaseOrderNumber || "")
-        .toLowerCase()
-        .includes(poSearchDebounced.value.toLowerCase())
-    );
-  });
-});
-
-// Fungsi untuk mengekspor ke Excel
 const exportToExcel = async () => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Report");
@@ -142,96 +93,32 @@ const exportToExcel = async () => {
     { header: "Project Name", key: "project_name", width: 25 },
     { header: "ECN/CCN", key: "ecn_ccn", width: 10 },
     { header: "Description", key: "description", width: 30 },
-    { header: "Part Numbers", key: "part_numbers", width: 30 },
-    { header: "Part Number Count", key: "part_number_count", width: 20 },
-    { header: "Reduction/Cost (Rp)", key: "reduction_cost", width: 15 },
     { header: "Increase (Rp)", key: "increase", width: 15 },
     { header: "Decrease (Rp)", key: "decrease", width: 15 },
-    // { header: "Remark", key: "remark", width: 20 },
   ];
 
-  for (let i = 0; i < ecns.value.length; i++) {
-    const e = ecns.value[i];
+  for (let i = 0; i < filteredEcns.value.length; i++) {
+    const e = filteredEcns.value[i];
 
-    const foundPO = pos.value.find(
-      (p) => `${p?.id}` === `${e?.extPurchaseOrderId}`
-    );
-    const projectName = foundPO
-      ? `${foundPO.purchaseOrderNumber} (${foundPO?.account?.name || ""})`
-      : "No Project Name";
+    const increase = e.items
+      ?.filter((item) => !item.deletedAt && item.typeIncreaseDecrease !== 1)
+      .reduce((acc, item) => acc + (item.snapshotPrice || 0) * (item.qty || 0), 0) || 0;
 
-    // Ambil detail part number
-    let partNumbers = [];
-    let partNumbersWithQty = [];
-    try {
-      const response = await axios.get(
-        // `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
-        `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems/${e.id}`
-      );
-      const detailData = response.data;
-
-      // Proses items untuk mendapatkan part numbers dan qty
-      detailData?.items?.forEach((item) => {
-        const foundItem = items.value.find((ix) => ix.id === item?.extItemId);
-        if (foundItem) {
-          partNumbers.push(
-            foundItem.partNum || `Unknown Part (${item?.extItemId})`
-          );
-          partNumbersWithQty.push(
-            `${foundItem.partNum || "Unknown Part"} (${item?.qty})`
-          );
-        }
-      });
-    } catch (error) {
-      console.error("Error fetching part numbers:", error);
-    }
-
-    const partNumberCount = partNumbers.length;
-
-    const reductionCost = e?.items
-      ?.filter((i) => !i?.deletedAt)
-      ?.reduce((acc, i) => {
-        const value = (i?.snapshotPrice ?? 0) * (i?.qty ?? 0);
-
-        return i?.typeIncreaseDecrease !== 1 ? acc + value : acc - value;
-      }, 0);
-
-    const increase = e?.items
-      ?.filter((i) => !i?.deletedAt && i?.typeIncreaseDecrease !== 1)
-      ?.reduce((acc, i) => acc + (i?.snapshotPrice ?? 0) * (i?.qty ?? 0), 0);
-
-    const decrease = e?.items
-      ?.filter((i) => !i?.deletedAt && i?.typeIncreaseDecrease === 1)
-      ?.reduce((acc, i) => acc + (i?.snapshotPrice ?? 0) * (i?.qty ?? 0), 0);
+    const decrease = e.items
+      ?.filter((item) => !item.deletedAt && item.typeIncreaseDecrease === 1)
+      .reduce((acc, item) => acc + (item.snapshotPrice || 0) * (item.qty || 0), 0) || 0;
 
     worksheet.addRow({
       no: i + 1,
-      id: e?.id || "",
-      date: e?.tgl
-        ? Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(
-            new Date(e?.tgl ?? "")
-          )
-        : "",
-      po_number: foundPO?.purchaseOrderNumber || "",
-      customer_name: foundPO?.account?.name || "Unknown Customer",
-      project_name: projectName,
-      ecn_ccn: e?.typeEcnCcn === 0 ? "ECN" : e?.typeEcnCcn === 1 ? "CCN" : "",
-      description: e?.detailProblem || "",
-      part_numbers: partNumbers.join(", "),
-      part_number_count: partNumberCount,
-      reduction_cost: reductionCost || 0,
-      increase: increase || 0,
-      decrease: decrease || 0,
-      remark: e?.remark || "",
-    });
-
-    // Tambahkan data Part Number dan Qty di bawah setiap data
-    partNumbersWithQty.forEach((partNumberQty) => {
-      worksheet.addRow({
-        no: "",
-        part_numbers: partNumberQty,
-        part_number_count: "",
-      });
+      id: e.id || "",
+      date: e.tgl ? new Date(e.tgl).toLocaleDateString("id-ID") : "",
+      po_number: e.poNumber || "",
+      customer_name: e.cust || "",
+      project_name: e.projectName || "",
+      ecn_ccn: e.typeEcnCcn === 0 ? "ECN" : e.typeEcnCcn === 1 ? "CCN" : "Lainnya",
+      description: e.detailProblem || "",
+      increase: increase,
+      decrease: decrease,
     });
   }
 
@@ -248,26 +135,17 @@ const exportToExcel = async () => {
   window.URL.revokeObjectURL(url);
 };
 
-const fetchPosData = async () => {
-  const d = await fetchExtCrmPurchaseOrdersProtoSimple();
-
-  if (d) {
-    pos.value = d;
-  }
-};
-
-// Fungsi untuk mendapatkan nama pengguna berdasarkan extUserId
 const getUsernameById = (id) => {
   const user = users.value.find((u) => `${u?.id}` === `${id}`);
   return user ? user.name : "Unknown";
 };
 
 fetchEngineeringDetailProblemsData();
-fetchPosData();
+fetchUsersData();
 fetchJobsData();
 fetchWarehouseItemsData();
-fetchUsersData();
 </script>
+
 <template>
   <div class="m-3">
     <v-container>
@@ -282,7 +160,6 @@ fetchUsersData();
       </v-row>
     </v-container>
 
-
     <v-row>
       <v-col cols="6">
         <v-select
@@ -290,6 +167,7 @@ fetchUsersData();
           label="Filter ECN/CCN"
           :items="['All', 'ECN', 'CCN']"
           outlined
+          dense
         ></v-select>
       </v-col>
       <v-col cols="6">
@@ -298,10 +176,10 @@ fetchUsersData();
           label="Search PO Number"
           outlined
           clearable
+          dense
         ></v-text-field>
       </v-col>
     </v-row>
-
 
     <div><hr /></div>
     <div>
@@ -309,37 +187,17 @@ fetchUsersData();
         class="overflow-auto border border-dark"
         style="height: 60vh; resize: vertical"
       >
-        <table class="table table-sm" style="border-collapse: separate">
+        <table class="table table-sm table-hover" style="border-collapse: separate">
           <thead>
             <tr>
               <th
                 style="position: sticky; top: 0"
-                class="bg-dark text-light p-0 m-0"
-                v-for="(h, i) in [
-                  '#',
-                  'ID',
-                  'Date',
-                  'PO',
-                  'Project Name',
-                  'Eng Note',
-                  'Problem Detail',
-                  'No. of Items',
-                  // 'Part Desc',
-                  // 'Qty',
-                  'Add/Subtract',
-                  'ECN/CCN',
-                  // 'UM',
-                  'Cost',
-                  'Increase',
-                  'Decrease',
-                  'Created',
-                  'Updated',
-                  'Action',
-                  'Print',
-                  'Approval',
-                  'Approval Status',
-                  'Has PO',
-                  'Requested By',
+                class="bg-dark text-light p-2"
+                v-for="h in [
+                  '#', 'ID', 'Date', 'PO', 'Project Name', 'Eng Note',
+                  'Problem Detail', 'Items', 'ECN/CCN', 'Cost',
+                  'Created', 'Updated', 'Action', 'Approval',
+                  'Status', 'Has PO', 'Requested By',
                 ]"
               >
                 {{ h }}
@@ -348,196 +206,75 @@ fetchUsersData();
           </thead>
           <tbody>
             <tr v-for="(e, i) in filteredEcns" :key="e.id || `ecn-${i}`">
-              <template
-                v-for="d in [
-                  {
-                    foundItem: items.find(
-                      (i) => `${i?.id}` === `${e?.extItemId}`
-                    ),
-                  },
-                ]"
-              >
-                <td class="border border-dark">{{ i + 1 }}</td>
-                <td class="border border-dark">{{ e?.id }}</td>
-
-                <td class="border border-dark">
-                  {{
-                    e?.tgl
-                      ? Intl.DateTimeFormat("en-US", {
-                          dateStyle: "medium",
-                        }).format(new Date(e?.tgl ?? ""))
-                      : ""
-                  }}
-                </td>
-                <td class="border border-dark">
-                  <template
-                    v-for="d in [
-                      {
-                        foundPO: pos.find(
-                          (p) => `${p?.id}` === `${e?.extPurchaseOrderId}`
-                        ),
-                      },
-                    ]"
-                    >{{ d?.foundPO?.purchaseOrderNumber }}
-                    {{
-                      d?.foundPO ? `(${d?.foundPO?.account?.name})` : ""
-                    }}</template
-                  >
-                </td>
-                <td class="border border-dark">
-                  {{
-                    jobs?.jobs?.find(
-                      (j) =>
-                        `${j?.masterJavaBaseModel?.id}` === `${e?.extJobId}`
-                    )?.name
-                  }}
-                </td>
-                <td class="border border-dark">{{ e?.engineering }}</td>
-                <td class="border border-dark">{{ e?.detailProblem }}</td>
-                <td class="border border-dark">{{ e?.items?.length }}</td>
-
-                <!-- <td class="border border-dark">{{ d?.foundItem?.partDesc }}</td>
-              <td class="border border-dark">{{ e?.qty }}</td> -->
-                <td class="border border-dark">Penambahan</td>
-                <td class="border border-dark">
-                  {{ e?.typeEcnCcn === 0 ? `ECN` : `` }}
-                  {{ e?.typeEcnCcn === 1 ? `CCN` : `` }}
-                </td>
-
-                <!-- <td class="border border-dark">EA</td> -->
-                <td class="border border-dark">
-                  {{
-                    Intl.NumberFormat("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(
-                      e?.items
-                        ?.filter((i) => !i?.deletedAt)
-                        ?.reduce((acc, i) => {
-                          const val = (i?.snapshotPrice ?? 0) * (i?.qty ?? 0);
-
-                          if (i?.typeIncreaseDecrease !== 1) {
-                            return acc + val;
-                          } else {
-                            return acc - val;
-                          }
-                        }, 0) ?? 0
-                    )
-                  }}
-                </td>
-                <td class="border border-dark">
-                  {{
-                    Intl.NumberFormat("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(
-                      e?.items
-                        ?.filter(
-                          (i) => !i?.deletedAt && i?.typeIncreaseDecrease !== 1
-                        )
-                        ?.reduce(
-                          (acc, i) =>
-                            acc + (i?.snapshotPrice ?? 0) * (i?.qty ?? 0),
-                          0
-                        ) ?? 0
-                    )
-                  }}
-                </td>
-                <td class="border border-dark">
-                  {{
-                    Intl.NumberFormat("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(
-                      e?.items
-                        ?.filter(
-                          (i) => !i?.deletedAt && i?.typeIncreaseDecrease === 1
-                        )
-                        ?.reduce(
-                          (acc, i) =>
-                            acc + (i?.snapshotPrice ?? 0) * (i?.qty ?? 0),
-                          0
-                        ) ?? 0
-                    )
-                  }}
-                </td>
-
-                <td class="border border-dark">
-                  {{
-                    e?.createdAt
-                      ? Intl.DateTimeFormat("en-US", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        }).format(new Date(e?.createdAt))
-                      : ""
-                  }}
-                </td>
-                <td class="border border-dark">
-                  {{
-                    e?.updatedAt
-                      ? Intl.DateTimeFormat("en-US", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        }).format(new Date(e?.updatedAt))
-                      : ""
-                  }}
-                </td>
-                <td class="border border-dark">
-                  <a :href="`/#/ecn/${e?.id}`"
-                    ><button class="btn btn-sm btn-primary px-1 py-0">
-                      Edit
-                    </button></a
-                  >
-                </td>
-                <td class="border border-dark">
-                  <a :href="`/#/ecn/${e?.id}/print`"
-                    ><button class="btn btn-sm btn-primary px-1 py-0">
-                      Print
-                    </button></a
-                  >
-                </td>
-                <td class="border border-dark">
-                  <a class="d-flex" :href="`/#/ecn/${e?.id}/approval`"
-                    ><button class="btn btn-sm btn-primary px-1 py-0">
-                      Approval
-                    </button>
-                  </a>
-                </td>
-                <td
-                  :class="`border border-dark text-light ${(() => {
-                    switch (e?.status) {
-                      case 0:
-                        return 'bg-dark';
-                      case 1:
-                        return 'bg-success';
-                      case 2:
-                        return 'bg-danger';
-                      default:
-                        return `bg-dark`;
-                    }
-                  })()}`"
-                >
-                  {{
-                    e?.approvalDate
-                      ? Intl.DateTimeFormat("en-US", {
-                          dateStyle: "medium",
-                        }).format(new Date(e?.approvalDate ?? ""))
-                      : ""
-                  }}
-                </td>
-                <td
-                  :class="`border border-dark ${
-                    e?.hasPo ? `bg-success text-dark` : `bg-dark text-light`
+              <td class="border-bottom">{{ i + 1 }}</td>
+              <td class="border-bottom">{{ e?.id }}</td>
+              <td class="border-bottom">
+                {{
+                  e?.tgl
+                    ? new Date(e.tgl).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : ''
+                }}
+              </td>
+              <td class="border-bottom">
+                <div v-if="e.poNumber || e.cust" style="font-size: 0.9em;">
+                  <strong>{{ e.poNumber }}</strong><br>
+                  <small>{{ e.cust }}</small>
+                </div>
+              </td>
+              <td class="border-bottom">{{ e.projectName }}</td>
+              <td class="border-bottom">{{ e.engineering }}</td>
+              <td class="border-bottom">{{ e.detailProblem }}</td>
+              <td class="border-bottom text-center">{{ e.items?.length ?? 0 }}</td>
+              <td class="border-bottom text-center">
+                <span :class="e?.typeEcnCcn === 0 ? 'badge bg-primary' : 'badge bg-secondary'">
+                  {{ e?.typeEcnCcn === 0 ? 'ECN' : e?.typeEcnCcn === 1 ? 'CCN' : 'Lainnya' }}
+                </span>
+              </td>
+              <td class="border-bottom text-end">
+                {{
+                  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(
+                    e?.items
+                      ?.filter((item) => !item?.deletedAt)
+                      ?.reduce((acc, item) => {
+                        const val = (item?.snapshotPrice ?? 0) * (item?.qty ?? 0);
+                        return item?.typeIncreaseDecrease !== 1 ? acc + val : acc - val;
+                      }, 0) ?? 0
+                  )
+                }}
+              </td>
+              <td class="border-bottom">
+                <small>{{ e?.createdAt ? new Date(e.createdAt).toLocaleString('id-ID') : '' }}</small>
+              </td>
+              <td class="border-bottom">
+                <small>{{ e?.updatedAt ? new Date(e.updatedAt).toLocaleString('id-ID') : '' }}</small>
+              </td>
+              <td class="border-bottom">
+                <a :href="`/#/ecn/${e?.id}`">
+                  <button class="btn btn-sm btn-outline-primary px-1 py-0">Edit</button>
+                </a>
+              </td>
+              <td class="border-bottom">
+                <a class="d-flex" :href="`/#/ecn/${e?.id}/approval`">
+                  <button class="btn btn-sm btn-outline-info px-1 py-0">Approval</button>
+                </a>
+              </td>
+              <td class="border-bottom text-center">
+                <span
+                  :class="`badge ${
+                    e?.status === 1 ? 'bg-success' : e?.status === 2 ? 'bg-danger' : 'bg-dark'
                   }`"
                 >
-                  {{ e?.hasPo ? `Yes` : `No` }}
-                </td>
-                <td class="border border-dark">
-                  {{ getUsernameById(e?.extUserId) }}
-                </td>
-                <!-- Tampilkan nama pengguna -->
-                <!-- <td class="border border-dark">{{ d?.foundItem?.partNum }}</td> -->
-              </template>
+                  {{ e?.status === 1 ? 'Approved' : e?.status === 2 ? 'Rejected' : 'Pending' }}
+                </span>
+              </td>
+              <td class="border-bottom text-center">
+                <span :class="e?.hasPo ? 'text-success' : 'text-danger'">
+                  {{ e?.hasPo ? 'Yes' : 'No' }}
+                </span>
+              </td>
+              <td class="border-bottom">
+                {{ getUsernameById(e?.extUserId) }}
+              </td>
             </tr>
           </tbody>
         </table>

@@ -3,7 +3,6 @@ import { computed, ref } from "vue";
 import {
   fetchDepartments,
   fetchEngineeringDetailProblem,
-  fetchEngineeringDetailProblems,
   fetchExtCrmPurchaseOrdersProtoSimple,
   fetchInventory,
   fetchItems,
@@ -13,7 +12,7 @@ import {
 import { useRoute, useRouter } from "vue-router";
 
 const route = useRoute();
-const ecn = ref([]);
+const ecn = ref({});
 const pos = ref([]);
 const jobs = ref([]);
 const router = useRouter();
@@ -26,7 +25,6 @@ const inventory = ref([]);
 
 const fetchEngineeringDetailProblemData = async () => {
   const d = await fetchEngineeringDetailProblem(route.params?.id ?? "");
-
   if (d) {
     ecn.value = d;
   }
@@ -38,7 +36,6 @@ const fetchJobsData = async () => {
     withProducts: true,
     withPurchaseOrders: true,
   });
-
   if (d) {
     jobs.value = d;
   }
@@ -46,7 +43,6 @@ const fetchJobsData = async () => {
 
 const fetchPosData = async () => {
   const d = await fetchExtCrmPurchaseOrdersProtoSimple();
-
   if (d) {
     pos.value = d;
   }
@@ -54,7 +50,6 @@ const fetchPosData = async () => {
 
 const fetchInventoryData = async () => {
   const d = await fetchInventory();
-
   if (d) {
     inventory.value = d;
   }
@@ -62,7 +57,6 @@ const fetchInventoryData = async () => {
 
 const fetchWarehouseItemsData = async () => {
   const d = await fetchItems();
-
   if (d) {
     items.value = d;
   }
@@ -70,19 +64,12 @@ const fetchWarehouseItemsData = async () => {
 
 const fetchUsersData = async () => {
   const d = await fetchUsers();
-  console.log("users", d);
   users.value = d;
 };
 
 const handleSave = async () => {
   try {
-    // Fill snapshots
-
-    // window.alert(inventory.value?.length);
-
-    // return;
-
-    const resp = await fetch(
+    await fetch(
       `${import.meta.env.VITE_APP_BASE_URL}/engineeringDetailProblems`,
       {
         method: "post",
@@ -90,7 +77,6 @@ const handleSave = async () => {
         body: JSON.stringify(ecn.value),
       }
     );
-
     router.push("/ecn");
   } catch (e) {
     console.error(e);
@@ -117,35 +103,25 @@ const itemsFiltered = computed(() => {
     ? items.value?.filter((i) => {
         const itemString =
           `${i?.mfr} ${i?.partNum} ${i?.partName} ${i?.partDesc}`.toLowerCase();
-
         return itemString
           .split(" ")
           .find((s) => itemSearch.value.toLowerCase().split(" ").includes(s));
       })
     : [];
 });
-
-const foundItem = computed(() => {
-  return items.value.find((i) => `${i?.id}` === `${ecn?.value?.extItemId}`);
-});
 </script>
+
 <template>
   <div class="my-5 container">
     <div class="d-flex">
       <h4>ECN Detail</h4>
       <div>
-        <!-- <a href="/#/ecn/add"> -->
         <button
           class="btn btn-sm btn-primary mx-2 px-1 py-0"
-          @click="
-            () => {
-              handleSave();
-            }
-          "
+          @click="handleSave"
         >
           Save
         </button>
-        <!-- </a> -->
       </div>
     </div>
     <div><hr /></div>
@@ -178,13 +154,12 @@ const foundItem = computed(() => {
         "
         @update:modelValue="
           (a) => {
-            ecn.extJobId = isNaN(parseInt(a?.masterJavaBaseModel?.id ?? ''))
-              ? 0
-              : parseInt(a?.masterJavaBaseModel?.id ?? '');
+            const jobId = a?.masterJavaBaseModel?.id;
+            ecn.extJobId = isNaN(parseInt(jobId ?? '')) ? null : parseInt(jobId ?? '');
+            ecn.projectName = a?.name ?? '';
           }
         "
       ></v-autocomplete>
-      <!-- {{ ecn.extJobId }} -->
     </div>
 
     <div>
@@ -224,12 +199,11 @@ const foundItem = computed(() => {
             ecn.extPanelCodeId = isNaN(
               parseInt(a?.masterJavaBaseModel?.id ?? '')
             )
-              ? 0
+              ? null
               : parseInt(a?.masterJavaBaseModel?.id ?? '');
           }
         "
       ></v-autocomplete>
-      <!-- {{ ecn.extJobId }} -->
     </div>
 
     <div><strong>PO</strong></div>
@@ -264,13 +238,13 @@ const foundItem = computed(() => {
         "
         @update:modelValue="
           (a) => {
-            ecn.extPurchaseOrderId = isNaN(parseInt(a?.id ?? ''))
-              ? 0
-              : parseInt(a?.id ?? '');
+            const poId = a?.id;
+            ecn.extPurchaseOrderId = isNaN(parseInt(poId ?? '')) ? null : parseInt(poId ?? '');
+            ecn.poNumber = a?.purchaseOrderNumber ?? '';
+            ecn.cust = a?.account?.name ?? '';
           }
         "
       ></v-autocomplete>
-      <!-- {{ ecn?.extPurchaseOrderId }} -->
     </div>
 
     <div><strong>Engineering Note</strong></div>
@@ -287,7 +261,7 @@ const foundItem = computed(() => {
       />
     </div>
 
-    <div><strong>Problem Detail</strong></div>
+    <div><strong>Problem Detail / Description</strong></div>
     <div class="d-flex">
       <textarea
         class="form-control form-control-sm"
@@ -296,6 +270,7 @@ const foundItem = computed(() => {
         @blur="
           (e) => {
             ecn.detailProblem = e.target.value;
+            ecn.description = e.target.value;
           }
         "
       />
@@ -315,40 +290,27 @@ const foundItem = computed(() => {
       </button>
     </div>
 
-    <!-- {{ foundItem?.mfr }} {{ foundItem?.partNum }} {{ foundItem?.partDesc }} -->
-
     <strong>Items</strong>
     <div class="border border-dark">
       <table class="table table-sm">
         <thead>
           <th
             v-for="h in [
-              '#',
-              'MFR',
-              'PN',
-              'Part Name',
-              'Part Desc',
-              'Qty',
-              'Get Price',
-              'Snapshot price',
-              'Snapshot x qty',
-              'Last snapshot',
-              'Type',
-              'UM',
-              'Action',
+              '#', 'MFR', 'PN', 'Part Name', 'Part Desc', 'Qty', 'Get Price',
+              'Snapshot price', 'Snapshot x qty', 'Last snapshot', 'Type', 'UM', 'Action',
             ]"
           >
             {{ h }}
           </th>
         </thead>
         <tbody>
-          <tr v-for="(i, i_) in ecn?.items?.filter((i) => !i.deletedAt) ?? []">
+          <tr v-for="(item, index) in ecn?.items?.filter((i) => !i.deletedAt) ?? []">
             <template
               v-for="d in [
-                { foundItem: items.find((ix) => ix.id === i?.extItemId) },
+                { foundItem: items.find((ix) => ix.id === item?.extItemId) },
               ]"
             >
-              <td class="border border-dark">{{ i_ + 1 }}</td>
+              <td class="border border-dark">{{ index + 1 }}</td>
               <td class="border border-dark">{{ d?.foundItem?.mfr }}</td>
               <td class="border border-dark">{{ d?.foundItem?.partNum }}</td>
               <td class="border border-dark">{{ d?.foundItem?.partName }}</td>
@@ -361,11 +323,11 @@ const foundItem = computed(() => {
                   @blur="
                     (e) => {
                       if (!isNaN(parseFloat(e.target.value))) {
-                        i.qty = parseFloat(e.target.value);
+                        item.qty = parseFloat(e.target.value);
                       }
                     }
                   "
-                  :value="i?.qty"
+                  :value="item?.qty"
                 />
               </td>
               <td class="border border-dark">
@@ -374,12 +336,12 @@ const foundItem = computed(() => {
                   @click="
                     () => {
                       const foundInv = inventory.find(
-                        (ix) => `${ix?.products?.id}` === `${i?.extItemId}`
+                        (ix) => `${ix?.products?.id}` === `${item?.extItemId}`
                       );
 
                       if (foundInv?.priceRp ?? 0 !== 0) {
-                        i.snapshotPrice = foundInv?.priceRp ?? 0;
-                        i.snapshotDate = new Date().toISOString();
+                        item.snapshotPrice = foundInv?.priceRp ?? 0;
+                        item.snapshotDate = new Date().toISOString();
                       }
                     }
                   "
@@ -395,56 +357,42 @@ const foundItem = computed(() => {
                   @blur="
                     (e) => {
                       if (!isNaN(parseFloat(e.target.value))) {
-                        i.snapshotPrice = parseFloat(e.target.value);
+                        item.snapshotPrice = parseFloat(e.target.value);
                       }
                     }
                   "
-                  :value="i?.snapshotPrice"
+                  :value="item?.snapshotPrice"
                 />
               </td>
               <td class="border border-dark">
                 {{
-                  Intl.NumberFormat("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  }).format((i?.snapshotPrice ?? 0) * (i?.qty ?? 0))
+                  new Intl.NumberFormat('id-ID').format((item?.snapshotPrice ?? 0) * (item?.qty ?? 0))
                 }}
               </td>
               <td class="border border-dark">
                 {{
-                  i?.snapshotDate
-                    ? Intl.DateTimeFormat("en-US", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }).format(new Date(i?.snapshotDate))
-                    : ""
+                  item?.snapshotDate
+                    ? new Date(item.snapshotDate).toLocaleDateString('id-ID')
+                    : ''
                 }}
               </td>
               <td class="border border-dark">
                 <div class="d-flex">
                   <button
-                    @click="
-                      () => {
-                        i.typeIncreaseDecrease = 0;
-                      }
-                    "
+                    @click="item.typeIncreaseDecrease = 0"
                     :class="`px-1 py-0 btn btn-sm ${
-                      i?.typeIncreaseDecrease === 0 || !i?.typeIncreaseDecrease
-                        ? `btn-primary`
+                      item?.typeIncreaseDecrease !== 1
+                        ? 'btn-primary'
                         : 'btn-outline-primary'
                     }`"
                   >
                     +
                   </button>
                   <button
-                    @click="
-                      () => {
-                        i.typeIncreaseDecrease = 1;
-                      }
-                    "
+                    @click="item.typeIncreaseDecrease = 1"
                     :class="`px-1 py-0 btn btn-sm ${
-                      i?.typeIncreaseDecrease === 1
-                        ? `btn-primary`
+                      item?.typeIncreaseDecrease === 1
+                        ? 'btn-primary'
                         : 'btn-outline-primary'
                     }`"
                   >
@@ -452,18 +400,12 @@ const foundItem = computed(() => {
                   </button>
                 </div>
               </td>
-
               <td class="border border-dark">{{ d?.foundItem?.defaultUm }}</td>
-
               <td class="border border-dark">
                 <div>
                   <button
                     class="btn btn-sm btn-danger"
-                    @click="
-                      () => {
-                        i.deletedAt = new Date().toISOString();
-                      }
-                    "
+                    @click="item.deletedAt = new Date().toISOString()"
                   >
                     Delete
                   </button>
@@ -475,35 +417,14 @@ const foundItem = computed(() => {
       </table>
     </div>
 
-    <!-- <div><strong>Qty</strong></div>
-    <div class="d-flex">
-      <input
-        class="form-control form-control-sm"
-        placeholder="Qty..."
-        type="number"
-        :value="ecn?.qty"
-        @blur="
-          (e) => {
-            if (!isNaN(parseFloat(e.target.value))) {
-              ecn.qty = parseFloat(e.target.value);
-            }
-          }
-        "
-      />
-    </div> -->
-
     <div class="d-flex p-2 border border-dark my-3">
       <div>Has PO?</div>
       <div class="mx-2">
         <input
           type="checkbox"
           :value="ecn?.hasPo"
-          @click="
-            () => {
-              ecn.hasPo = !ecn.hasPo;
-            }
-          "
-          :checked="ecn.hasPo ? true : false"
+          @click="ecn.hasPo = !ecn.hasPo"
+          :checked="ecn.hasPo"
         />
       </div>
     </div>
@@ -542,10 +463,20 @@ const foundItem = computed(() => {
     <div><strong>Type (Add/Subtract)</strong></div>
     <div class="d-flex">
       <div class="mx-1">
-        <button class="btn btn-sm btn-primary">Penambahan</button>
+        <button
+          :class="`btn btn-sm ${ecn.type === 0 ? 'btn-primary' : 'btn-outline-primary'}`"
+          @click="ecn.type = 0"
+        >
+          Penambahan
+        </button>
       </div>
       <div class="mx-1">
-        <button class="btn btn-sm btn-outline-primary">Pengurangan</button>
+        <button
+          :class="`btn btn-sm ${ecn.type === 1 ? 'btn-primary' : 'btn-outline-primary'}`"
+          @click="ecn.type = 1"
+        >
+          Pengurangan
+        </button>
       </div>
     </div>
 
@@ -556,11 +487,7 @@ const foundItem = computed(() => {
           :class="`btn btn-sm ${
             ecn?.typeEcnCcn === 0 ? `btn-primary` : `btn-outline-primary`
           }`"
-          @click="
-            () => {
-              ecn = { ...ecn, typeEcnCcn: 0 };
-            }
-          "
+          @click="ecn.typeEcnCcn = 0"
         >
           ECN
         </button>
@@ -570,11 +497,7 @@ const foundItem = computed(() => {
           :class="`btn btn-sm ${
             ecn?.typeEcnCcn === 1 ? `btn-primary` : `btn-outline-primary`
           }`"
-          @click="
-            () => {
-              ecn = { ...ecn, typeEcnCcn: 1 };
-            }
-          "
+          @click="ecn.typeEcnCcn = 1"
         >
           CCN
         </button>
@@ -584,11 +507,7 @@ const foundItem = computed(() => {
           :class="`btn btn-sm ${
             ecn?.typeEcnCcn === 2 ? `btn-primary` : `btn-outline-primary`
           }`"
-          @click="
-            () => {
-              ecn = { ...ecn, typeEcnCcn: 2 };
-            }
-          "
+          @click="ecn.typeEcnCcn = 2"
         >
           Others
         </button>
@@ -598,131 +517,82 @@ const foundItem = computed(() => {
           :class="`btn btn-sm ${
             ecn?.typeEcnCcn === 3 ? `btn-primary` : `btn-outline-primary`
           }`"
-          @click="
-            () => {
-              ecn = { ...ecn, typeEcnCcn: 3 };
-            }
-          "
+          @click="ecn.typeEcnCcn = 3"
         >
           FAB
         </button>
       </div>
     </div>
-    <div v-if="ecn?.typeEcnCcn === 3">
-      <div>
-        <small><strong>Margin Before</strong></small>
-      </div>
-      <div>
-        <input
-          placeholder="Before..."
-          class="form-control form-control-sm"
-          :value="ecn?.marginBefore"
-          @blur="
-            (e) => {
-              if (!isNaN(parseFloat(e.target.value))) {
-                ecn.marginBefore = parseFloat(e.target.value);
-              }
-            }
-          "
-        />
-      </div>
-      <div>
-        <small><strong>Margin After</strong></small>
-      </div>
-      <div>
-        <input
-          placeholder="After..."
-          class="form-control form-control-sm"
-          :value="ecn?.marginAfter"
-          @blur="
-            (e) => {
-              if (!isNaN(parseFloat(e.target.value))) {
-                ecn.marginAfter = parseFloat(e.target.value);
-              }
-            }
-          "
-        />
-      </div>
+    
     </div>
-  </div>
-  <div>
-    <v-dialog v-model="dialog">
-      <v-card prepend-icon="mdi-run" title="Select Item">
-        <template v-slot:actions> </template>
-
-        <div class="m-3">
-          <!-- <v-container> -->
-          <div>
-            <input
-              class="form-control form-control-sm"
-              placeholder="Search by PN, MFR, Part Name, Part Desc.."
-              @blur="
-                (e) => {
-                  itemSearch = e.target.value;
-                }
-              "
-            />
-          </div>
-
-          <div><hr /></div>
-          <div
-            class="overflow-auto border border-dark"
-            style="height: 65vh; resize: vertical"
-          >
-            <table class="table table-sm" :style="`border-collapse: separate`">
-              <thead>
-                <tr>
-                  <th
-                    v-for="h in [
-                      '#',
-                      'PN',
-                      'Part Name',
-                      'Part Desc',
-                      'UM',
-                      'Action',
-                    ]"
-                    style="position: sticky; top: 0"
-                    class="bg-dark text-light"
-                  >
-                    {{ h }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(i, i_) in itemsFiltered">
-                  <td class="border border-dark">{{ i_ + 1 }}</td>
-                  <td class="border border-dark">{{ i?.partNum }}</td>
-                  <td class="border border-dark">{{ i?.partName }}</td>
-                  <td class="border border-dark">{{ i?.partDesc }}</td>
-                  <td class="border border-dark">{{ i?.defaultUm }}</td>
-                  <td class="border border-dark">
-                    <div>
-                      <button
-                        class="btn btn-sm btn-primary"
-                        @click="
-                          () => {
-                            ecn.extItemId = i?.id;
-
-                            if (!ecn.items) {
-                              ecn.items = [];
-                            }
-
-                            ecn.items = [...ecn.items, { extItemId: i?.id }];
-
-                            dialog = false;
-                          }
-                        "
-                      >
-                        Select
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+  
+  <v-dialog v-model="dialog">
+    <v-card prepend-icon="mdi-run" title="Select Item">
+      <div class="m-3">
+        <div>
+          <input
+            class="form-control form-control-sm"
+            placeholder="Search by PN, MFR, Part Name, Part Desc.."
+            @blur="
+              (e) => {
+                itemSearch = e.target.value;
+              }
+            "
+          />
         </div>
-      </v-card>
-    </v-dialog>
-  </div>
+        <div><hr /></div>
+        <div
+          class="overflow-auto border border-dark"
+          style="height: 65vh; resize: vertical"
+        >
+          <table class="table table-sm table-hover" :style="`border-collapse: separate`">
+            <thead>
+              <tr>
+                <th
+                  v-for="h in ['#', 'PN', 'Part Name', 'Part Desc', 'UM', 'Action']"
+                  style="position: sticky; top: 0"
+                  class="bg-dark text-light"
+                >
+                  {{ h }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(i, i_) in itemsFiltered">
+                <td>{{ i_ + 1 }}</td>
+                <td>{{ i?.partNum }}</td>
+                <td>{{ i?.partName }}</td>
+                <td>{{ i?.partDesc }}</td>
+                <td>{{ i?.defaultUm }}</td>
+                <td>
+                  <div>
+                    <button
+                      class="btn btn-sm btn-primary"
+                      @click="
+                        () => {
+                          if (!ecn.items) {
+                            ecn.items = [];
+                          }
+                          ecn.items.push({ extItemId: i?.id, qty: 1 });
+
+                          if (ecn.items.length === 1) {
+                            ecn.pn = i?.partNum;
+                            ecn.qty = 1;
+                            ecn.uom = i?.defaultUm;
+                          }
+                          dialog = false;
+                        }
+                      "
+                    >
+                      Select
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </v-card>
+  </v-dialog>
 </template>

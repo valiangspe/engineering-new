@@ -11,7 +11,8 @@ using System.Security.AccessControl;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using SupportReportAPI.Helpers;
+using SupportReportAPI.Helpers
+;
 
 var builder = WebApplication.CreateBuilder(args);
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
@@ -22,7 +23,7 @@ var connString = "server=127.0.0.1;database=engineer;user=root;password=";
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonDateTimeConverter());
-
+    options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
     options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
 });
@@ -122,6 +123,8 @@ app.MapGet("/engineering-notes/{id}", async (AppDbContext db, int id) =>
 
 app.MapGet("/engineeringDetailProblems/{id}/all", async (AppDbContext db, int id) =>
 {
+    // ... (kode untuk mengambil 'ecn' dan data eksternal lainnya tetap sama) ...
+    
     var ecn = await db.EngineeringDetailProblems
         .Include(e => e.Items)
         .Include(e => e.Approvals)
@@ -131,7 +134,8 @@ app.MapGet("/engineeringDetailProblems/{id}/all", async (AppDbContext db, int id
     {
         return Results.NotFound($"Engineering Detail Problem dengan ID {id} tidak ditemukan.");
     }
-
+    
+    // ... (kode async fetch data users, PO, items tetap sama) ...
     var usersTask = Fetcher.fetchUsersAsync();
     var purchaseOrdersTask = Fetcher.fetchCrmPurchaseOrdersAsync();
     var itemsTask = Fetcher.fetchPpicItemsAsync();
@@ -141,14 +145,15 @@ app.MapGet("/engineeringDetailProblems/{id}/all", async (AppDbContext db, int id
     var users = await usersTask;
     var purchaseOrders = await purchaseOrdersTask;
     var allItems = await itemsTask;
-
+    
     var requestedByUser = users.FirstOrDefault(u => u.Id == ecn.ExtUserId);
     var relatedPO = purchaseOrders.FirstOrDefault(p => p.Id == ecn.ExtPurchaseOrderId);
 
+    // --- PERBAIKAN PADA BAGIAN INI ---
     var resultDto = new EngineeringDetailProblemAllDataDTO
     {
         Id = ecn.Id,
-        No = ecn.No,
+        // Properti 'No' yang tidak relevan sudah dihapus
         Tgl = ecn.Tgl,
         ProjectName = ecn.ProjectName,
         Engineering = ecn.Engineering,
@@ -156,20 +161,20 @@ app.MapGet("/engineeringDetailProblems/{id}/all", async (AppDbContext db, int id
         TypeEcnCcn = ecn.TypeEcnCcn,
         Status = ecn.Status,
         ApprovalDate = ecn.ApprovalDate,
+        ApprovalRemark = ecn.ApprovalRemark,     // <-- ISI PROPERTI BARU
+        ApprovalFileName = ecn.ApprovalFileName, // <-- ISI PROPERTI BARU
         HasPo = ecn.HasPo,
         CreatedAt = ecn.CreatedAt,
 
         Items = ecn.Items?.Select(item => {
-            // PERUBAHAN 1: Cari seluruh objek detail part, bukan hanya namanya
             var partDetail = allItems.FirstOrDefault(i => i.Id == item.ExtItemId);
-
             return new ItemAllDataDTO
             {
                 ExtItemId = item.ExtItemId,
                 Qty = item.Qty,
                 SnapshotPrice = item.SnapshotPrice,
                 TypeIncreaseDecrease = item.TypeIncreaseDecrease,
-                PartDetail = partDetail // PERUBAHAN 2: Sisipkan seluruh objeknya di sini
+                PartDetail = partDetail
             };
         }).ToList(),
 
@@ -185,14 +190,7 @@ app.MapGet("/engineeringDetailProblems/{id}/all", async (AppDbContext db, int id
     };
 
     return Results.Ok(resultDto);
-});app.MapPost("/engineeringDetailProblems", async (EngineeringDetailProblem engineeringDetailProblem, AppDbContext db) =>
-{
-    db.EngineeringDetailProblems.Update(engineeringDetailProblem);
-    await db.SaveChangesAsync();
-    return Results.Ok(engineeringDetailProblem);
 });
-
-
 // EngineerSupports
 app.MapGet("/engineerSupports", async (AppDbContext db) =>
     await db.EngineerSupports.ToListAsync());
@@ -1816,6 +1814,8 @@ public class PpicItem
         public DateTime? ApprovalDate { get; set; }
         public bool? HasPo { get; set; }
         public DateTime? CreatedAt { get; set; }
+        public string? ApprovalRemark { get; set; } 
+        public string? ApprovalFileName { get; set; } 
 
         // Data relasional yang digabungkan
         public List<ItemAllDataDTO>? Items { get; set; }
