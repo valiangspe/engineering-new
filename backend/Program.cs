@@ -264,21 +264,41 @@ app.MapPost("/donePOs", async (DonePO donePO, AppDbContext db) =>
 });
 
 // EngineeringDetailProblems
+// EngineeringDetailProblems
 app.MapGet("/engineeringDetailProblems", async (AppDbContext db) =>
-    await db.EngineeringDetailProblems
-    .Include(p => p.Items)
-    .Include(p => p.Approvals)
-
-    .ToListAsync());
-
-app.MapGet("/engineeringDetailProblems/{id}", async (AppDbContext db, int id) =>
-     await db.EngineeringDetailProblems
-     .Where(e => e.Id == id)
+{
+    var problems = await db.EngineeringDetailProblems
         .Include(p => p.Items)
         .Include(p => p.Approvals)
+        .ToListAsync();
 
+    // Filter item yang sudah di soft-delete untuk setiap data
+    problems.ForEach(p => 
+    {
+        p.Items = p.Items?.Where(item => item.DeletedAt == null).ToList();
+    });
 
-     .FirstOrDefaultAsync());
+    return Results.Ok(problems);
+});
+
+app.MapGet("/engineeringDetailProblems/{id}", async (AppDbContext db, int id) =>
+{
+    var ecn = await db.EngineeringDetailProblems
+        .Where(e => e.Id == id)
+        .Include(p => p.Items)
+        .Include(p => p.Approvals)
+        .FirstOrDefaultAsync();
+
+    if (ecn is null)
+    {
+        return Results.NotFound();
+    }
+
+    // Filter item yang sudah di soft-delete sebelum dikirim sebagai response
+    ecn.Items = ecn.Items?.Where(item => item.DeletedAt == null).ToList();
+
+    return Results.Ok(ecn);
+});
 
 app.MapGet("/engineeringDetailProblems/{id}/photo", async (AppDbContext db, int id) =>
 {
@@ -309,19 +329,19 @@ app.MapGet("/engineeringDetailProblems/{id}/photo", async (AppDbContext db, int 
 // }
 
 
-// app.MapPost("/engineeringDetailProblems", async (EngineeringDetailProblem engineeringDetailProblem, AppDbContext db) =>
-// {
-//     if (engineeringDetailProblem.Id == 0)
-//     {
-//         db.EngineeringDetailProblems.Add(engineeringDetailProblem);
-//     }
-//     else
-//     {
-//         db.EngineeringDetailProblems.Update(engineeringDetailProblem);
-//     }
-//     await db.SaveChangesAsync();
-//     return Results.Ok(engineeringDetailProblem);
-// });
+app.MapPost("/engineeringDetailProblems", async (EngineeringDetailProblem engineeringDetailProblem, AppDbContext db) =>
+{
+    if (engineeringDetailProblem.Id == 0)
+    {
+        db.EngineeringDetailProblems.Add(engineeringDetailProblem);
+    }
+    else
+    {
+        db.EngineeringDetailProblems.Update(engineeringDetailProblem);
+    }
+    await db.SaveChangesAsync();
+    return Results.Ok(engineeringDetailProblem);
+});
 
 // bomapprovals
 app.MapGet("/bomapprovals", async (AppDbContext db) =>
@@ -1765,6 +1785,42 @@ app.MapGet("/supporttables/{id:int}/download", async (int id, AppDbContext db) =
 
 // EndOfStreamException notifikasi 
 
+app.MapGet("/api/ecn-page-detail-data/{id}", async (AppDbContext db, int id) =>
+{
+    var ecnTask = db.EngineeringDetailProblems
+        .Include(e => e.Items)
+        .Include(e => e.Approvals)
+        .FirstOrDefaultAsync(e => e.Id == id);
+
+    var posTask = Fetcher.fetchCrmPurchaseOrdersAsync();
+    var jobsTask = Fetcher.fetchJobsProtoSimpleAsync(true, true, true);
+    var itemsTask = Fetcher.fetchPpicItemsAsync();
+    var usersTask = Fetcher.fetchUsersAsync();
+    var departmentsTask = Fetcher.fetchDepartmentsAsync();
+    var inventoryTask = Fetcher.fetchInventoryAsync();
+
+    await System.Threading.Tasks.Task.WhenAll(ecnTask, posTask, jobsTask, itemsTask, usersTask, departmentsTask, inventoryTask);
+
+    var ecn = await ecnTask;
+    if (ecn is null)
+    {
+        return Results.NotFound();
+    }
+
+    var result = new EcnPageDetailDataDto
+    {
+        Ecn = ecn,
+        Pos = await posTask,
+        Jobs = await jobsTask,
+        Items = await itemsTask,
+        Users = await usersTask,
+        Departments = await departmentsTask,
+        Inventory = await inventoryTask
+    };
+
+    return Results.Ok(result);
+});
+
 app.Run();
 
 static void SaveBase64ToFile(string base64String, string filePath)
@@ -1838,6 +1894,17 @@ public class PpicItem
         public AuthserverUser? ApprovedBy { get; set; }
         public DateTime? ApprovalDate { get; set; }
         public int? Status { get; set; }
+    }
+
+    public class EcnPageDetailDataDto
+    {
+        public EngineeringDetailProblem? Ecn { get; set; }
+        public List<CrmPurchaseOrder>? Pos { get; set; }
+        public object? Jobs { get; set; }
+        public List<PpicItem>? Items { get; set; }
+        public List<AuthserverUser>? Users { get; set; }
+        public object? Departments { get; set; }
+        public object? Inventory { get; set; }
     }
 
 
@@ -1925,24 +1992,21 @@ public class PpicItem
         public string? Cust { get; set; }
         public string? ProjectName { get; set; }
         public string? Engineering { get; set; }
-        public string? DetailProblem { get; set; }
-        public string? Pn { get; set; }
-        public string? Description { get; set; }
-        public int? Qty { get; set; }
-        public string? Uom { get; set; }
-        public double? Cost { get; set; }
+        public string? DetailProblem { get; set; } // Ini deskripsi masalah ECN, jadi tetap dipertahankan
 
+        // Data Eksternal & Relasi
         public int? ExtJobId { get; set; }
         public int? ExtPurchaseOrderId { get; set; }
-        public int? ExtItemId { get; set; }
         public int? Type { get; set; } // 0 = penambahan, 1 = pengurangan
         public int? ExtUserId { get; set; }
-        public List<EngineeringDetailProblemItem>? Items { get; set; }
         public int? TypeEcnCcn { get; set; } // 0 = ecn, 1 = ccn, 2 = other, 3 = fab
-        public List<EngineeringDetailProblemApproval>? Approvals { get; set; }
         public int? ExtPanelCodeId { get; set; }
+        
+        // --- Koleksi Child ---
+        public List<EngineeringDetailProblemItem>? Items { get; set; }
+        public List<EngineeringDetailProblemApproval>? Approvals { get; set; }
 
-        // Approval
+        // Properti Approval
         public int? ApprovalExtUserId { get; set; }
         public DateTime? ApprovalDate { get; set; }
         public int? Status { get; set; } // 0 = outs, 1 = accepted, 2 = rejected
@@ -1950,8 +2014,7 @@ public class PpicItem
         public string? ApprovalFileName { get; set; }
         public bool? HasPo { get; set; }
         public double? MarginBefore { get; set; }
-        public double? MarginAfter { get; set; }
-        
+        public double? MarginAfter { get; set; }        
     }
 
     public class EngineeringDetailProblemItem : BaseModel
@@ -2315,6 +2378,42 @@ class Fetcher
         {
             PropertyNameCaseInsensitive = true
         });
+    }
+
+    public static async Task<object> fetchJobsProtoSimpleAsync(bool all, bool withProducts, bool withPurchaseOrders)
+    {
+        var response = await new HttpClient().GetAsync($"https://ppic-backend.iotech.my.id/jobs-proto-simple?all={all}&withProducts={withProducts}&withPurchaseOrders={withPurchaseOrders}");
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"Gagal mengambil data jobs dari PPIC: {response.ReasonPhrase}");
+            return new object();
+        }
+        var resp = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<object>(resp, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+
+    public static async Task<object> fetchDepartmentsAsync()
+    {
+        var response = await new HttpClient().GetAsync($"https://authserver-backend.iotech.my.id/ext-departments");
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"Gagal mengambil data departments: {response.ReasonPhrase}");
+            return new object();
+        }
+        var resp = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<object>(resp, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+
+    public static async Task<object> fetchInventoryAsync()
+    {
+        var response = await new HttpClient().GetAsync($"https://ppic-backend.iotech.my.id/ext-inventory?all=true");
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"Gagal mengambil data inventory dari PPIC: {response.ReasonPhrase}");
+            return new object();
+        }
+        var resp = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<object>(resp, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 }
 public class AuthserverUser
