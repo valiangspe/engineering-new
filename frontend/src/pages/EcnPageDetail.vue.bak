@@ -558,7 +558,6 @@ const itemsFiltered = computed(() => {
         />
       </div>
     </div>
-  </div>
   
   <v-dialog v-model="dialog">
     <v-card prepend-icon="mdi-run" title="Select Item">
@@ -617,7 +616,7 @@ const itemsFiltered = computed(() => {
                           dialog = false;
                         }
                       "
-                    >
+                    }
                       Select
                     </button>
                   </div>

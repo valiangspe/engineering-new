@@ -1,6 +1,6 @@
 {
   "dev": {
-    "base_url": "http://localhost:5172",
+    "base_url": "`${window.location.origin}`",
     "authserver_url": "http://192.168.2.160:8083",
     "meeting_url": "http://192.168.2.160:8085",
     "ppic_url": "http://192.168.2.160:8080",

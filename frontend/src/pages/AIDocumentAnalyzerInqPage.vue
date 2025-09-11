@@ -82,28 +82,32 @@ fetchInquiriesData();
     >
       <table class="table table-sm" style="border-collapse: separate">
         <thead>
-          <th
-            class="bg-dark text-light"
-            style="position: sticky; top: 0"
-            v-for="h in ['#', 'ID', 'Inq Number', 'Title', 'Action']"
-          >
-            {{ h }}
-          </th>
+          <tr>
+            <th
+              class="bg-dark text-light"
+              style="position: sticky; top: 0"
+              v-for="h in ['#', 'ID', 'Inq Number', 'Title', 'Action']"
+            >
+              {{ h }}
+            </th>
+          </tr>
         </thead>
-        <tbody v-for="(i, i_) in inquiries">
-          <td class="border border-dark">{{ i_ + 1 }}</td>
-          <td class="border border-dark">{{ i?.id }}</td>
-          <td class="border border-dark">{{ i?.inquiryNumber }}</td>
-          <td class="border border-dark">{{ i?.title }}</td>
-          <td class="border border-dark">
-            <div>
-              <a :href="`#/ai-document-analyzer/${i?.id}`">
-                <button class="btn btn-sm btn-primary" @click="() => {}">
-                  Detail
-                </button>
-              </a>
-            </div>
-          </td>
+        <tbody>
+          <tr v-for="(i, i_) in inquiries">
+            <td class="border border-dark">{{ i_ + 1 }}</td>
+            <td class="border border-dark">{{ i?.id }}</td>
+            <td class="border border-dark">{{ i?.inquiryNumber }}</td>
+            <td class="border border-dark">{{ i?.title }}</td>
+            <td class="border border-dark">
+              <div>
+                <a :href="`#/ai-document-analyzer/${i?.id}`">
+                  <button class="btn btn-sm btn-primary" @click="() => {}">
+                    Detail
+                  </button>
+                </a>
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>

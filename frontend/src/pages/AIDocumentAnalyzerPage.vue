@@ -166,54 +166,57 @@ fetchInquiriesData();
 
       <div class="overflow-auto border border-dark">
         <table class="table table-sm" style="border-collapse: separate">
-          <tr>
-            <th
-              class="bg-dark text-light"
-              style="position: sticky; top: 0"
-              v-for="h in [
-                '#',
-                'ID',
-                'Model',
-                'File Name',
-                'No. of Words',
-                'Created',
-                'Action',
-              ]"
-            >
-              {{ h }}
-            </th>
-          </tr>
+          <thead>
+            <tr>
+              <th
+                class="bg-dark text-light"
+                style="position: sticky; top: 0"
+                v-for="h in [
+                  '#',
+                  'ID',
+                  'Model',
+                  'File Name',
+                  'No. of Words',
+                  'Created',
+                  'Action',
+                ]"
+              >
+                {{ h }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(i, i_) in inquiryAIDocs">
+              <td class="border border-dark">{{ i_ + 1 }}</td>
+              <td class="border border-dark">{{ i?.id }}</td>
+              <td class="border border-dark">{{ i?.model }}</td>
+              <td class="border border-dark">{{ i?.fileName }}</td>
+              <td class="border border-dark">{{ i?.content?.length }}</td>
+              <td class="border border-dark">
+                {{
+                  Intl.DateTimeFormat("en-US", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(i?.createdAt ?? ""))
+                }}
+              </td>
 
-          <tr v-for="(i, i_) in inquiryAIDocs">
-            <td class="border border-dark">{{ i_ + 1 }}</td>
-            <td class="border border-dark">{{ i?.id }}</td>
-            <td class="border border-dark">{{ i?.model }}</td>
-            <td class="border border-dark">{{ i?.fileName }}</td>
-            <td class="border border-dark">{{ i?.content?.length }}</td>
-            <td class="border border-dark">
-              {{
-                Intl.DateTimeFormat("en-US", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                }).format(new Date(i?.createdAt ?? ""))
-              }}
-            </td>
-
-            <td class="border border-dark">
-              <div>
-                <button
-                  class="btn btn-sm btn-primary"
-                  @click="
-                    () => {
-                      result = i?.content;
-                    }
-                  "
-                >
-                  Preview
-                </button>
-              </div>
-            </td>
-          </tr>
+              <td class="border border-dark">
+                <div>
+                  <button
+                    class="btn btn-sm btn-primary"
+                    @click="
+                      () => {
+                        result = i?.content;
+                      }
+                    "
+                  >
+                    Preview
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
         </table>
       </div>
     </div>

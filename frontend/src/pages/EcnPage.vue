@@ -41,7 +41,12 @@ const fetchEngineeringDetailProblemsData = async () => {
     );
     if (response.data) {
       ecns.value = Array.isArray(response.data)
-        ? response.data.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+        ? response.data.sort((a, b) => {
+            // Urutkan berdasarkan ID secara descending (ID terbaru di paling atas)
+            const idA = parseInt(a.id) || 0;
+            const idB = parseInt(b.id) || 0;
+            return idB - idA;
+          })
         : [response.data];
     }
   } catch (error) {
@@ -196,7 +201,7 @@ fetchWarehouseItemsData();
                 v-for="h in [
                   '#', 'ID', 'Date', 'PO', 'Project Name', 'Eng Note',
                   'Problem Detail', 'Items', 'ECN/CCN', 'Cost',
-                  'Created', 'Updated', 'Action', 'Approval',
+                  'Created', 'Updated', 'Action', 'Approval', 'Print',
                   'Status', 'Has PO', 'Requested By',
                 ]"
               >
@@ -256,6 +261,11 @@ fetchWarehouseItemsData();
               <td class="border-bottom">
                 <a class="d-flex" :href="`/#/ecn/${e?.id}/approval`">
                   <button class="btn btn-sm btn-outline-info px-1 py-0">Approval</button>
+                </a>
+              </td>
+              <td class="border-bottom">
+                <a class="d-flex" :href="`/#/ecn/${e?.id}/print`" target="_blank">
+                  <button class="btn btn-sm btn-outline-secondary px-1 py-0">Print</button>
                 </a>
               </td>
               <td class="border-bottom text-center">

@@ -304,14 +304,18 @@ const foundItem = computed(() => {
               </div>
             </div>
 
-            <div class="col-3 p-2 border-end border-dark">
+            <div v-if="ecn?.typeEcnCcn === 3" class="col-3 p-2 border-end border-dark">
               <span class="fw-bold">Margin Before</span>
               <div>{{ ecn?.marginBefore ? `${ecn?.marginBefore}%` : `` }}</div>
             </div>
 
-            <div class="col-3 p-2">
+            <div v-if="ecn?.typeEcnCcn === 3" class="col-3 p-2">
               <span class="fw-bold">Margin After</span>
               <div>{{ ecn?.marginAfter ? `${ecn?.marginAfter}%` : `` }}</div>
+            </div>
+            
+            <div v-if="ecn?.typeEcnCcn !== 3" class="col-6 p-2">
+              <!-- Placeholder to maintain layout when Margin fields are not shown -->
             </div>
           </div>
 
