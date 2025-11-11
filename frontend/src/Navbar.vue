@@ -107,6 +107,12 @@
         prepend-icon="mdi-brain"
         title="AI Document Analyzer"
       ></v-list-item>
+      
+       <v-list-item
+        href="/#/project-document-tree"
+        prepend-icon="mdi-file-tree"
+        title="Project Document Tree"
+      ></v-list-item>
 
       <a href="https://eng.iotech.my.id" target="_blank">
         <v-list-item
