@@ -50,6 +50,8 @@ import SupportEngineeringDocument from "./pages/SupportEngineeringDocument.vue";
 import ActivityCopy from "./pages/ActivityCopy.vue";
 import JobOverview from "./pages/JobOverview.vue";
 import NcrPage from "./pages/NcrPage.vue";
+import ProjectDocumentTreeDetail from "./pages/ProjectDocumentTreeDetail.vue";
+import ProjectDocumentTreeList from "./pages/ProjectDocumentTreeList.vue";
 
 const routes = [
   // dynamic segments start with a colon
@@ -96,6 +98,8 @@ const routes = [
   { path: "/engineerTimeProcess", component: engTimeProcess },
   { path: "/joboverview", component: JobOverview },
   { path: "/ncr", component:NcrPage },
+  { path: "/project-document-tree", component: ProjectDocumentTreeList },
+  { path: "/project-document-detail/:projectId", component:ProjectDocumentTreeDetail },
 
 
   //   path: "/activity/:taskId?",
