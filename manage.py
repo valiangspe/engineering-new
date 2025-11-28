@@ -100,13 +100,13 @@ steps = []
 if args.type == "frontend":
     if args.action == "run":
         steps = [
-            # ('npm i', './frontend'),
-            ("yarn dev", "./frontend")
+            ('npm install', './frontend'),
+            ("npm run dev", "./frontend")
         ]
 
     elif args.action == "build":
         steps = [
-            # ('npm i', './frontend'),
+            ('npm install', './frontend'),
             ("npm run build", "./frontend"),
             ("zip -r release.zip .", "./frontend/build"),
         ]

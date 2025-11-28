@@ -268,13 +268,80 @@ app.MapPost("/donePOs", async (DonePO donePO, AppDbContext db) =>
 // EngineeringDetailProblems
 app.MapGet("/engineeringDetailProblems", async (AppDbContext db) =>
 {
+    var ecns = await db.EngineeringDetailProblems
+        .Include(p => p.Items)
+        .Include(p => p.Approvals)
+        .ToListAsync();
+
+    // Filter soft delete
+    foreach (var ecn in ecns)
+    {
+        ecn.Items = ecn.Items?.Where(item => item.DeletedAt == null).ToList();
+    }
+
+    // Fetch external data
+    var usersTask = Fetcher.fetchUsersAsync();
+    var purchaseOrdersTask = Fetcher.fetchCrmPurchaseOrdersAsync();
+    var itemsTask = Fetcher.fetchPpicItemsAsync();
+
+    await System.Threading.Tasks.Task.WhenAll(usersTask, purchaseOrdersTask, itemsTask);
+
+    var users = await usersTask;
+    var pos = await purchaseOrdersTask;
+    var allItems = await itemsTask;
+
+    var result = ecns.Select(ecn => new EngineeringDetailProblemAllDataDTO
+    {
+        Id = ecn.Id,
+        No = ecn.No,
+        Tgl = ecn.Tgl,
+        ProjectName = ecn.ProjectName,
+        Engineering = ecn.Engineering,
+        DetailProblem = ecn.DetailProblem,
+        TypeEcnCcn = ecn.TypeEcnCcn,
+        Status = ecn.Status,
+        ApprovalDate = ecn.ApprovalDate,
+        ApprovalRemark = ecn.ApprovalRemark,
+        ApprovalFileName = ecn.ApprovalFileName,
+        HasPo = ecn.HasPo,
+        CreatedAt = ecn.CreatedAt,
+
+        Items = ecn.Items?.Select(item => {
+            var partDetail = allItems.FirstOrDefault(i => i.Id == item.ExtItemId);
+            return new ItemAllDataDTO
+            {
+                ExtItemId = item.ExtItemId,
+                Qty = item.Qty,
+                SnapshotPrice = item.SnapshotPrice,
+                TypeIncreaseDecrease = item.TypeIncreaseDecrease,
+                PartDetail = partDetail
+            };
+        }).ToList(),
+
+        Approvals = ecn.Approvals?.Select(approval => new ApprovalAllDataDTO
+        {
+            ApprovalDate = approval.ApprovalDate,
+            Status = approval.Status,
+            ApprovedBy = users.FirstOrDefault(u => u.Id == approval.ExtUserId)
+        }).ToList(),
+
+        PurchaseOrder = pos.FirstOrDefault(p => p.Id == ecn.ExtPurchaseOrderId),
+        RequestedBy = users.FirstOrDefault(u => u.Id == ecn.ExtUserId)
+    }).ToList();
+
+    return Results.Ok(result);
+});
+
+app.MapGet("/engineeringDetailProblems/byPoId/{poId}", async (AppDbContext db, int poId) =>
+{
     var problems = await db.EngineeringDetailProblems
+        .Where(e => e.ExtPurchaseOrderId == poId)
         .Include(p => p.Items)
         .Include(p => p.Approvals)
         .ToListAsync();
 
     // Filter item yang sudah di soft-delete untuk setiap data
-    problems.ForEach(p => 
+    problems.ForEach(p =>
     {
         p.Items = p.Items?.Where(item => item.DeletedAt == null).ToList();
     });
@@ -1884,10 +1951,14 @@ public class PpicItem
     public class ItemAllDataDTO
     {
         public int? ExtItemId { get; set; }
-        public PpicItem? PartDetail { get; set; } 
+        public PpicItem? PartDetail { get; set; }
         public double? Qty { get; set; }
         public double? SnapshotPrice { get; set; }
         public int? TypeIncreaseDecrease { get; set; }
+        // Added for clarity
+        public int? MrId => ExtItemId;
+        public string? MrNumber => PartDetail?.PartNum;
+        public string? DetailProduct => PartDetail?.PartDesc ?? PartDetail?.PartName;
     }
     
     public class ApprovalAllDataDTO
