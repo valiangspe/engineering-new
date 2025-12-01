@@ -16,10 +16,10 @@ using SupportReportAPI.Helpers
 
 var builder = WebApplication.CreateBuilder(args);
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
-var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
+// var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
 // var connString = "server=127.0.0.1;database=engineer;user=gspe;password=gspe-intercon";
 // var connString = "server=localhost;database=engineer;user=root;password=";
-// var connString = "server=192.168.2.160;database=engineer;user=gspe;password=gspe-intercon";
+var connString = "server=192.168.2.160;database=engineer;user=gspe;password=gspe-intercon";
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -140,12 +140,14 @@ app.MapGet("/engineeringDetailProblems/{id}/all", async (AppDbContext db, int id
     var usersTask = Fetcher.fetchUsersAsync();
     var purchaseOrdersTask = Fetcher.fetchCrmPurchaseOrdersAsync();
     var itemsTask = Fetcher.fetchPpicItemsAsync();
+    var mrListTask = Fetcher.fetchMaterialRequestsAsync(new List<int> { id });
 
-    await System.Threading.Tasks.Task.WhenAll(usersTask, purchaseOrdersTask, itemsTask);
-    
+    await System.Threading.Tasks.Task.WhenAll(usersTask, purchaseOrdersTask, itemsTask, mrListTask);
+
     var users = await usersTask;
     var purchaseOrders = await purchaseOrdersTask;
     var allItems = await itemsTask;
+    var mrList = mrListTask.Result;
     
     var requestedByUser = users.FirstOrDefault(u => u.Id == ecn.ExtUserId);
     var relatedPO = purchaseOrders.FirstOrDefault(p => p.Id == ecn.ExtPurchaseOrderId);
@@ -168,16 +170,21 @@ app.MapGet("/engineeringDetailProblems/{id}/all", async (AppDbContext db, int id
         CreatedAt = ecn.CreatedAt,
 
         Items = ecn.Items?.Select(item => {
-            var partDetail = allItems.FirstOrDefault(i => i.Id == item.ExtItemId);
+            var ppicItem = allItems.FirstOrDefault(i => i.Id == item.ExtItemId);
             return new ItemAllDataDTO
             {
                 ExtItemId = item.ExtItemId,
                 Qty = item.Qty,
                 SnapshotPrice = item.SnapshotPrice,
                 TypeIncreaseDecrease = item.TypeIncreaseDecrease,
-                PartDetail = partDetail
+                PartNumber = ppicItem?.PartNum,
+                PartName = ppicItem?.PartName,
+                PartDescription = ppicItem?.PartDesc ?? ppicItem?.PartName,
+                Manufacturer = ppicItem?.Mfr,
             };
         }).ToList(),
+
+        MaterialRequests = mrList.Where(m => m.ExtEngineeringProblemId == ecn.Id).ToList(), // MR terpisah
 
         Approvals = ecn.Approvals?.Select(approval => new ApprovalAllDataDTO
         {
@@ -185,7 +192,7 @@ app.MapGet("/engineeringDetailProblems/{id}/all", async (AppDbContext db, int id
             Status = approval.Status,
             ApprovedBy = users.FirstOrDefault(u => u.Id == approval.ExtUserId)
         }).ToList(),
-        
+
         PurchaseOrder = relatedPO,
         RequestedBy = requestedByUser
     };
@@ -283,12 +290,14 @@ app.MapGet("/engineeringDetailProblems", async (AppDbContext db) =>
     var usersTask = Fetcher.fetchUsersAsync();
     var purchaseOrdersTask = Fetcher.fetchCrmPurchaseOrdersAsync();
     var itemsTask = Fetcher.fetchPpicItemsAsync();
+    var mrListTask = Fetcher.fetchMaterialRequestsAsync(ecns.Where(e => e.Id.HasValue).Select(e => e.Id.Value).ToList());
 
-    await System.Threading.Tasks.Task.WhenAll(usersTask, purchaseOrdersTask, itemsTask);
+    await System.Threading.Tasks.Task.WhenAll(usersTask, purchaseOrdersTask, itemsTask, mrListTask);
 
     var users = await usersTask;
     var pos = await purchaseOrdersTask;
     var allItems = await itemsTask;
+    var mrList = mrListTask.Result;
 
     var result = ecns.Select(ecn => new EngineeringDetailProblemAllDataDTO
     {
@@ -307,26 +316,31 @@ app.MapGet("/engineeringDetailProblems", async (AppDbContext db) =>
         CreatedAt = ecn.CreatedAt,
 
         Items = ecn.Items?.Select(item => {
-            var partDetail = allItems.FirstOrDefault(i => i.Id == item.ExtItemId);
+            var ppicItem = allItems.FirstOrDefault(i => i.Id == item.ExtItemId);
             return new ItemAllDataDTO
             {
                 ExtItemId = item.ExtItemId,
                 Qty = item.Qty,
                 SnapshotPrice = item.SnapshotPrice,
                 TypeIncreaseDecrease = item.TypeIncreaseDecrease,
-                PartDetail = partDetail
+                PartNumber = ppicItem?.PartNum,
+                PartName = ppicItem?.PartName,
+                PartDescription = ppicItem?.PartDesc ?? ppicItem?.PartName,
+                Manufacturer = ppicItem?.Mfr,
             };
         }).ToList(),
 
-        Approvals = ecn.Approvals?.Select(approval => new ApprovalAllDataDTO
-        {
-            ApprovalDate = approval.ApprovalDate,
-            Status = approval.Status,
-            ApprovedBy = users.FirstOrDefault(u => u.Id == approval.ExtUserId)
-        }).ToList(),
+    Approvals = ecn.Approvals?.Select(approval => new ApprovalAllDataDTO
+    {
+        ApprovalDate = approval.ApprovalDate,
+        Status = approval.Status,
+        ApprovedBy = users.FirstOrDefault(u => u.Id == approval.ExtUserId)
+    }).ToList(),
 
-        PurchaseOrder = pos.FirstOrDefault(p => p.Id == ecn.ExtPurchaseOrderId),
-        RequestedBy = users.FirstOrDefault(u => u.Id == ecn.ExtUserId)
+    MaterialRequests = mrList.Where(m => m.ExtEngineeringProblemId == ecn.Id).ToList(), // MR terpisah
+
+    PurchaseOrder = pos.FirstOrDefault(p => p.Id == ecn.ExtPurchaseOrderId),
+    RequestedBy = users.FirstOrDefault(u => u.Id == ecn.ExtUserId)
     }).ToList();
 
     return Results.Ok(result);
@@ -1938,11 +1952,12 @@ public class PpicItem
         public DateTime? ApprovalDate { get; set; }
         public bool? HasPo { get; set; }
         public DateTime? CreatedAt { get; set; }
-        public string? ApprovalRemark { get; set; } 
-        public string? ApprovalFileName { get; set; } 
+        public string? ApprovalRemark { get; set; }
+        public string? ApprovalFileName { get; set; }
 
         // Data relasional yang digabungkan
         public List<ItemAllDataDTO>? Items { get; set; }
+        public List<MaterialRequest>? MaterialRequests { get; set; } // MR terpisah dari Items
         public List<ApprovalAllDataDTO>? Approvals { get; set; }
         public CrmPurchaseOrder? PurchaseOrder { get; set; } // Dari kelas yang sudah ada
         public AuthserverUser? RequestedBy { get; set; } // Dari kelas yang sudah ada
@@ -1951,14 +1966,13 @@ public class PpicItem
     public class ItemAllDataDTO
     {
         public int? ExtItemId { get; set; }
-        public PpicItem? PartDetail { get; set; }
         public double? Qty { get; set; }
         public double? SnapshotPrice { get; set; }
         public int? TypeIncreaseDecrease { get; set; }
-        // Added for clarity
-        public int? MrId => ExtItemId;
-        public string? MrNumber => PartDetail?.PartNum;
-        public string? DetailProduct => PartDetail?.PartDesc ?? PartDetail?.PartName;
+        public string? PartNumber { get; set; }
+        public string? PartName { get; set; }
+        public string? PartDescription { get; set; }
+        public string? Manufacturer { get; set; }
     }
     
     public class ApprovalAllDataDTO
@@ -1968,7 +1982,7 @@ public class PpicItem
         public int? Status { get; set; }
     }
 
-    public class EcnPageDetailDataDto
+public class EcnPageDetailDataDto
     {
         public EngineeringDetailProblem? Ecn { get; set; }
         public List<CrmPurchaseOrder>? Pos { get; set; }
@@ -1977,6 +1991,55 @@ public class PpicItem
         public List<AuthserverUser>? Users { get; set; }
         public object? Departments { get; set; }
         public object? Inventory { get; set; }
+    }
+
+    public class MaterialRequest
+    {
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public string? OriginalName { get; set; }
+        public string? MaterialRequestNumber { get; set; }
+        public int? Status { get; set; }
+        public DateTime? NeededDate { get; set; }
+        public string? Remark { get; set; }
+        public Job? Job { get; set; }
+        public List<MaterialRequestItem>? MaterialRequestItems { get; set; }
+        public List<MaterialRequestAuthorization>? MaterialRequestAuthorizations { get; set; }
+        public bool? Hidden { get; set; }
+        public bool? Unchangeable { get; set; }
+        public int? Version { get; set; }
+        public int? JobId { get; set; }
+        public int? ExtEngineeringProblemId { get; set; }
+        public string? ExtEngineeringProblemType { get; set; }
+        public int? ExtEngineeringProblemPoBpoExists { get; set; }
+        public int? ExtEngineeringProblemIsVariance { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+    }
+
+    public class Job
+    {
+        public int? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Pocode { get; set; }
+        // Add other fields as needed
+    }
+
+    public class MaterialRequestItem
+    {
+        public int? Id { get; set; }
+        public double? Qty { get; set; }
+        public int? ExtItemId { get; set; }
+        public double? SnapshotPriceIdr { get; set; }
+        public DateTime? SnapshotPriceDate { get; set; }
+        // Add other fields as needed
+    }
+
+    public class MaterialRequestAuthorization
+    {
+        public int? Id { get; set; }
+        public int? ExtUserId { get; set; }
+        public bool? NeedAuthorization { get; set; }
     }
 
 
@@ -2395,6 +2458,34 @@ class Fetcher
         {
             PropertyNameCaseInsensitive = true
         });
+    }
+
+    public static async Task<List<MaterialRequest>> fetchMaterialRequestsAsync(List<int> ecnIds)
+    {
+        if (!ecnIds.Any())
+        {
+            return new List<MaterialRequest>();
+        }
+
+        var queryParams = $"extEngineeringProblemId={string.Join(",", ecnIds)}";
+        var mrUrl = $"https://ppic-backend.iotech.my.id/materialrequests?{queryParams}";
+
+        var response = await new HttpClient().GetAsync(mrUrl);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"Gagal mengambil MR data dari PPIC: {response.ReasonPhrase}");
+            return new List<MaterialRequest>();
+        }
+
+        var resp = await response.Content.ReadAsStringAsync();
+        var allMRs = JsonSerializer.Deserialize<List<MaterialRequest>>(resp, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        }) ?? new List<MaterialRequest>();
+
+        // Filter MCs by ecnIds if API doesn't filter exactly
+        return allMRs.Where(mr => ecnIds.Contains(mr.ExtEngineeringProblemId ?? 0)).ToList();
     }
 
     // FUNGSI YANG HILANG SEBELUMNYA, SEKARANG SUDAH ADA DI SINI
