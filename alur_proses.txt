@@ -1,0 +1,155 @@
+ALUR PROSES SETIAP BAGIAN APLIKASI ENGINEERING MANAGEMENT SYSTEM
+
+================================================================================
+
+1. PROSES LOGIN DAN AUTENTIKASI
+================================================================================
+1. Pengguna mengakses halaman login frontend
+2. Pengguna memasukkan username dan password
+3. Frontend mengirim request POST ke endpoint /login di backend
+4. Backend forward request ke auth server eksternal (https://authserver-backend.iotech.my.id/login)
+5. Auth server memvalidasi credential dan mengembalikan token jika berhasil
+6. Backend menerima token dan forward ke frontend
+7. Frontend menyimpan token dalam local storage untuk autentikasi selanjutnya
+8. Jika gagal, tampilkan pesan error
+
+================================================================================
+
+2. DASHBOARD - TAMPILAN METRIK UTAMA
+================================================================================
+1. Pengguna login dan mengakses halaman dashboard
+2. Frontend membuat request GET ke /api/dashboard/metrics untuk data agregat
+3. Frontend mengambil data ECN/CCN per bulan dari /api/dashboard/ecn-data dan /api/dashboard/ccn-data
+4. Data divisualisasikan dalam bentuk chart dan card metrics
+5. Jika ada tombol untuk mengupdate metrics, POST request ke /api/dashboard/metrics/arr
+6. Real-time update metrics jika ada perubahan dari sistem lain
+
+================================================================================
+
+3. MANAJEMEN ECN/CCN (ENGINEERING DETAIL PROBLEMS)
+================================================================================
+3.1 PEMBUATAN ECN/CCN:
+1. Pengguna mengakses halaman InputDataPage atau EcnPage
+2. Mengisi form: project name, detail problem, engineering notes, type (ECN/CCN), items
+3. Frontend mengirim POST request ke /engineeringDetailProblems
+4. Backend menyimpan ke database dengan status pending approval
+5. Jika ada file lampiran, upload melalui /engineeringDetailProblems/{id}/photo
+
+3.2 APPROVAL PROCESS:
+1. Approver (biasanya manager) mengakses halaman ECNApproval atau BOMApproval
+2. Melihat daftar ECN/CCN yang menunggu approval
+3. Review detail ECN melalui GET /engineeringDetailProblems/{id}/all
+4. Setujui atau tolak dengan remark dan tanggal approval
+5. Backend update status dan simpan approval history
+
+3.3 VIEWING DAN REPORTING:
+1. Pengguna dapat melihat list semua ECN/CCN via GET /engineeringDetailProblems
+2. Filter berdasarkan PO ID untuk GET /engineeringDetailProblems/byPoId/{poId}
+3. Filter berdasarkan MR ID untuk GET /engineeringDetailProblems/byMrId/{mrId}
+4. Melihat engineering notes via GET /engineering-notes (dengan optional filter type-note)
+5. Melihat detail lengkap ECN/CCN dengan GET /engineeringDetailProblems/{id}/all
+6. Export ke Excel jika diklik tombol excel pada dashboard activities
+
+================================================================================
+
+4. BOM APPROVAL PROCESS
+================================================================================
+1. Sistem mendeteksi perubahan BOM dari PPIC backend
+2. Backend menerima notifikasi dan membuat record BomApproval
+3. PIC mengakses halaman BOMApproval untuk melihat daftar yang butuh approval
+4. Untuk setiap BOM, serta beberapa PIC diperlukan untuk approval (BomApprovalPic)
+5. Masing-masing PIC approve dengan remark dan tanggal
+6. Setelah semua PIC approve, snapshot BOM dikirim ke PPIC backend
+7. Status approval update dan notifikasi dikirim jika ada perubahan
+
+================================================================================
+
+5. ACTIVITY DAN TASK MANAGEMENT
+================================================================================
+5.1 PEMBUATAN ACTIVITY:
+1. Pengguna mengakses halaman Activity.vue atau input page
+2. Mengisi form activity: description, type (PrePO/PostPO/Others), customer, dll.
+3. Menambahkan tasks dengan PIC, hours, remark, dan due date
+4. Frontend calculate FromCache dan ToCache dari dates task
+5. POST ke /api/dashboard/activities untuk menyimpan activity dan tasks
+
+5.2 TASK EXECUTION DAN TRACKING:
+1. PIC melihat notifikasi untuk task baru (GET /api/notifications/active?role=PIC)
+2. Ketika PIC "done", POST /api/notifications/done untuk update CompletedDatePic dan kirim notifikasi ke SPV
+3. SPV "done" lalu POST /api/notifications/done, update CompletedDateSpv dan CompletedBySpvId, kirim ke Manager
+4. Manager "done" terakhir, POST /api/notifications/done, update CompletedDateManager dan CompletedByManagerId, ubah status notifikasi ke Completed
+5. Jika perlu "undone", PUT /api/notifications/undone untuk rollback status
+6. Notifikasi otomatis dibuat saat task baru dibuat dengan current role PIC
+
+5.3 EDITING TASKS:
+1. Untuk mengubah task, PUT request ke /api/dashboard/activities/task/{taskId}
+2. Update task fields seperti hours, remark, dates
+3. Jika customer diubah, update di activity parent
+
+================================================================================
+
+6. SUPPORT DOCUMENT MANAGEMENT
+================================================================================
+1. Pengguna mengakses halaman SupportDoc.page untuk melihat list SupportTable
+2. Upload dokumen baru: POST /supporttables dengan form data (name + file)
+3. File disimpan di folder uploads/ dengan nama unik
+4. Saat linking ke job: POST /api/support-engineering-documents with JobId dan array SupportTableIds
+5. Update support untuk job: PUT /api/support-engineering-documents/{jobId}/supporttableid
+6. Download file: GET /supporttables/{id}/download atau /supporttables/download/{fileName}
+7. View atau delete support documents via list endpoint
+
+================================================================================
+
+7. NOTIFICATION SYSTEM
+================================================================================
+1. Saat task dibuat (POST /api/tasks), notifikasi otomatis dibuat untuk PIC aktif
+2. Ketika role "done" (PIC/SPV/Manager), POST /api/notifications/done untuk create next role notification
+3. Jika "undone", PUT /api/notifications/undone untuk rollback
+4. Frontend fetch notifikasi aktif per role: GET /api/notifications/active?role={role}
+5. Dashboard notifications: GET /api/notifications/dashboard untuk overview
+6. Mark as read dengan update IsRead saat dibuka
+
+================================================================================
+
+8. REPORTING DAN EKSPOR DATA
+================================================================================
+1. Untuk activities report: GET /api/dashboard/activities dengan parameter from, to, extInquiryId, dll.
+2. Jika excel=true, backend generate file Excel dengan ClosedXML library
+3. Data tasks direturn dengan in-charges dan user names (jika withUserNames=true)
+4. External data ditarik dari CRM (POs, Inquiries) dan internal (users)
+5. File Excel disimpan sebagai MemoryStream dan dikirim sebagai response File
+
+================================================================================
+
+9. INTEGRASI DENGAN SISTEM EKSTERNAL
+================================================================================
+9.1 FETCH USERS: Backend call authserver-backend.iotech.my.id/users/view
+9.2 FETCH POs: CRM data from crm-local.iotech.my.id/api/external/purchase-orders/ppic
+9.3 FETCH ITEMS: PPIC data from ppic-backend.iotech.my.id/ext-items
+9.4 MATERIAL REQUESTS: ppic-backend.iotech.my.id/materialrequests
+9.5 FETCH JOBS/DEPTS/INVENTORY: Berbagai endpoint dari backend PPIC dan auth
+9.6 BOM SNAPSHOT: Auto-snapshot setelah BOM approval via HTTP POST ke PPIC
+
+================================================================================
+
+10. AI DOCUMENT ANALYZER
+================================================================================
+1. Pengguna mengakses halaman AI Document Analyzer untuk inquiry atau dokumen lain
+2. Upload dokumen atau pilih inquiry dari list
+3. Frontend mengirim request ke backend untuk analisis AI
+4. Backend fetch inquiry data dari CRM dan proses dengan AI
+5. Hasil analisis disimpan di InquiryAIGenerations table
+6. Frontend menampilkan hasil analisis dalam format markdown
+7. Hasil dapat digunakan untuk generate engineering notes atau task descriptions
+
+================================================================================
+
+11. PROSES DEPLOYMENT DAN ENVIRONMENT MANAGEMENT
+================================================================================
+1. Jalankan manage.py untuk setup environment (development/production)
+2. Backend menggunakan manage.py run backend dev untuk development
+3. Frontend dengan manage.py run frontend dev
+4. Untuk production build: manage.py build backend prod-local
+5. Database migration otomatis saat app start (dbContext.Database.Migrate())
+6. Container deployment menggunakan Dockerfile
+7. Environment variables disimpan di .env files (backend.env, frontend.template.env)
