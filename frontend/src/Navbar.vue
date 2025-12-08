@@ -11,6 +11,18 @@
 
     <v-spacer></v-spacer>
 
+    <!-- User Guide Button in Header -->
+    <v-btn
+      href="/#/user-guide"
+      prepend-icon="mdi-book-open-page-variant"
+      variant="text"
+      class="text-none"
+    >
+      <template v-if="$vuetify.display.mdAndUp">
+        User Guide
+      </template>
+    </v-btn>
+
     <template v-if="$vuetify.display.mdAndUp">
       <v-btn icon="mdi-magnify" variant="text"></v-btn>
       <v-btn icon="mdi-filter" variant="text"></v-btn>
@@ -29,6 +41,12 @@
         href="/#/"
         prepend-icon="mdi-view-dashboard"
         title="Dashboard"
+      ></v-list-item>
+      <v-list-item
+        href="/#/user-guide"
+        prepend-icon="mdi-book-open-page-variant"
+        title="📖 User Guide"
+        style="background-color: #e3f2fd; font-weight: bold;"
       ></v-list-item>
       <v-list-item
         href="/#/joboverview"

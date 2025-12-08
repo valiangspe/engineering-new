@@ -52,6 +52,7 @@ import JobOverview from "./pages/JobOverview.vue";
 import NcrPage from "./pages/NcrPage.vue";
 import ProjectDocumentTreeDetail from "./pages/ProjectDocumentTreeDetail.vue";
 import ProjectDocumentTreeList from "./pages/ProjectDocumentTreeList.vue";
+import UserGuidePage from "./pages/UserGuidePage.vue";
 
 const routes = [
   // dynamic segments start with a colon
@@ -100,6 +101,7 @@ const routes = [
   { path: "/ncr", component:NcrPage },
   { path: "/project-document-tree", component: ProjectDocumentTreeList },
   { path: "/project-document-detail/:projectId", component:ProjectDocumentTreeDetail },
+  { path: "/user-guide", component: UserGuidePage },
 
 
   //   path: "/activity/:taskId?",

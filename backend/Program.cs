@@ -1428,32 +1428,134 @@ app.MapPost(
         tasksSortedTo?.Sort((a, b) => b.To?.CompareTo(a.To) ?? 0);
         activity.ToCache = tasksSortedTo?.First()?.To;
 
-        db.Update(activity);
-        await db.SaveChangesAsync();
-        return Results.Ok(activity);
-    }
-);
-app.MapPut(
-    "/api/dashboard/activities/{id}",
-    async (int id, EngineeringActivity updatedActivity, AppDbContext db) =>
+    db.Update(activity);
+    await db.SaveChangesAsync();
+
+    // Sync to WO manufacturing in PPIC
+    if (activity.Type == EngineeringActivityType.PostPO)
     {
-        var existing = await db
-            .EngineeringActivities.Include(e => e.Tasks)
-            .ThenInclude(t => t.InCharges)
-            .FirstOrDefaultAsync(e => e.Id == id);
+        try
+        {
+            var client = new HttpClient();
 
-        if (existing == null)
-            return Results.NotFound("Activity not found");
+            // Calculate total time activity
+            var totalTimeActivity = activity.Tasks?.Sum(t => t.Hours ?? 0) ?? 0;
 
-        // Update field yang boleh diubah
-        existing.Customer = updatedActivity.Customer;
-        existing.Description = updatedActivity.Description;
-        existing.Type = updatedActivity.Type;
-        existing.ExtInquiryId = updatedActivity.ExtInquiryId;
-        existing.ExtPurchaseOrderId = updatedActivity.ExtPurchaseOrderId;
-        existing.ExtJobId = updatedActivity.ExtJobId;
-        existing.ExtPanelCodeId = updatedActivity.ExtPanelCodeId;
-        existing.SupportTableId = updatedActivity.SupportTableId;
+            // Build PPIC-compatible payload in MeetingTaskListsView format
+            var ppicPayload = new
+            {
+                taskLists = new[]
+                {
+                    new
+                    {
+                        taskList = new
+                        {
+                            masterJavaBaseModel = new
+                            {
+                                createdAt = activity.CreatedAt?.ToString("o"),
+                                updatedAt = activity.UpdatedAt?.ToString("o")
+                            },
+                            name = activity.Description,
+                            extInChargeId = activity.PIC?.ToString(),
+                            extCustomerId = activity.Customer?.ToString(),
+                            extJobId = activity.ExtJobId?.ToString(),
+                            extPanelCodeId = activity.ExtPanelCodeId?.ToString(),
+                            extPurchaseOrderId = activity.ExtPurchaseOrderId?.ToString(),
+                            totalTimeHours = totalTimeActivity,
+                            meetingTasks = activity.Tasks == null ? new List<object>() : activity.Tasks.Select(t => new
+                            {
+                                masterJavaBaseModel = new
+                                {
+                                    createdAt = t.CreatedAt?.ToString("o"),
+                                    updatedAt = t.UpdatedAt?.ToString("o")
+                                },
+                                description = t.Description,
+                                durationMins = (t.Hours ?? 0) * 60,
+                                start = t.From?.ToString("yyyy-MM-dd"),
+                                deadline = t.To?.ToString("yyyy-MM-dd"),
+                                target = t.To?.ToString("yyyy-MM-dd"),
+                                meetingTaskTargetDates = new[]
+                                {
+                                    new { date = t.To?.ToString("yyyy-MM-dd") }
+                                },
+                                meetingTaskInCharges = t.InCharges == null ? new List<object>() : t.InCharges.Select(ic => new
+                                {
+                                    extUserId = ic.ExtUserId?.ToString(),
+                                    totalTimeHoursTask = t.Hours,
+                                    totalTimeHours = totalTimeActivity,
+                                    masterJavaBaseModel = new
+                                    {
+                                        createdAt = ic.CreatedAt?.ToString("o"),
+                                        updatedAt = ic.UpdatedAt?.ToString("o")
+                                    }
+                                }).Cast<object>().ToList(),
+                                status = (t.CompletedDatePic != null && t.CompletedDateSpv != null) ? "COMPLETED" : "OUTSTANDING",
+                                extPicCompletedDate = t.CompletedDatePic?.ToString("yyyy-MM-dd"),
+                                completedDate = t.CompletedDateSpv?.ToString("yyyy-MM-dd"),
+                                remark = t.Remark
+                            }).Cast<object>().ToList()
+                        }
+                    }
+                }
+            };
+
+            var json = JsonSerializer.Serialize(ppicPayload, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = true
+            });
+
+            Console.WriteLine($"Sending to PPIC: {json}");
+
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await client.PostAsync("https://ppic-backend.iotech.my.id/ext-meetingtasks-proto-save", content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Failed to sync activity to PPIC WO: {response.StatusCode} - {errorContent}");
+            }
+            else
+            {
+                Console.WriteLine($"Successfully synced activity ID {activity.Id} to PPIC WO");
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Error syncing to PPIC WO: {e.Message}");
+            Console.WriteLine($"Stack trace: {e.StackTrace}");
+        }
+    }
+
+    return Results.Ok(activity);
+});
+app.MapPut("/api/dashboard/activities/{id}", async (int id, EngineeringActivity updatedActivity, AppDbContext db) =>
+{
+    var existing = await db.EngineeringActivities
+        .Include(e => e.Tasks)
+        .ThenInclude(t => t.InCharges)
+        .FirstOrDefaultAsync(e => e.Id == id);
+
+    if (existing == null)
+        return Results.NotFound("Activity not found");
+
+    // Update field yang boleh diubah
+    existing.Customer = updatedActivity.Customer;
+    existing.Description = updatedActivity.Description;
+    existing.Type = updatedActivity.Type;
+    existing.ExtInquiryId = updatedActivity.ExtInquiryId;
+    existing.ExtPurchaseOrderId = updatedActivity.ExtPurchaseOrderId;
+    existing.ExtJobId = updatedActivity.ExtJobId;
+    existing.ExtPanelCodeId = updatedActivity.ExtPanelCodeId;
+    existing.SupportTableId = updatedActivity.SupportTableId;
+
+    // Optional: bisa update FromCache dan ToCache juga jika task berubah
+    existing.FromCache = updatedActivity.FromCache;
+    existing.ToCache = updatedActivity.ToCache;
+
+    await db.SaveChangesAsync();
+    return Results.Ok(existing);
+});
 
         // Optional: bisa update FromCache dan ToCache juga jika task berubah
         existing.FromCache = updatedActivity.FromCache;

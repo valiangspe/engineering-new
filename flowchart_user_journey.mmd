@@ -1,0 +1,225 @@
+graph TB
+    Start([User Mulai Menggunakan Aplikasi])
+
+    subgraph Login["🔐 LOGIN"]
+        L1[Buka Aplikasi Engineering Management]
+        L2[Masukkan Username & Password]
+        L3{Login Berhasil?}
+        L4[Masuk ke Dashboard]
+        L5[Tampilkan Error]
+    end
+
+    subgraph Dashboard["📊 DASHBOARD"]
+        D1[Lihat Metrics Utama:<br/>- Total ECN/CCN bulan ini<br/>- Total Manpower<br/>- Total BOM<br/>- Chart ECN/CCN per bulan]
+        D2{Pilih Menu}
+    end
+
+    subgraph ECN["📝 MANAJEMEN ECN/CCN"]
+        E1[Pilih Menu ECN/CCN]
+        E2{Aksi?}
+        E3[Buat ECN/CCN Baru<br/>- Isi Project Name<br/>- Detail Problem<br/>- Engineering Notes<br/>- Tambah Items]
+        E4[Lihat List ECN/CCN]
+        E5[Approval ECN/CCN<br/>Manager Only]
+        E6[ECN/CCN Tersimpan]
+    end
+
+    subgraph Activity["⚙️ ACTIVITY & TASK"]
+        A1[Pilih Menu Work Order WO]
+        A2{Aksi?}
+        A3[Buat Activity Baru<br/>- Pilih Type: PrePO/PostPO/Others<br/>- Link ke PO/Inquiry/ECN<br/>- Tambah Multiple Tasks]
+        A4[Lihat List Activities]
+        A5[Task Execution:<br/>PIC → SPV → Manager]
+        A6[Lihat Notifications]
+    end
+
+    subgraph BOM["✅ BOM APPROVAL"]
+        B1[Pilih Menu BOM Approval]
+        B2[Lihat List BOM<br/>yang Perlu Approval]
+        B3[Review BOM Details]
+        B4[Approve/Reject<br/>dengan Remark]
+        B5[BOM Status Updated]
+    end
+
+    subgraph Support["📁 SUPPORT DOCUMENTS"]
+        S1[Pilih Menu Support Doc]
+        S2{Aksi?}
+        S3[Upload Document Baru]
+        S4[Link Document ke Job]
+        S5[Download Document]
+        S6[View Job Documents]
+    end
+
+    subgraph AI["🤖 AI DOCUMENT ANALYZER"]
+        AI1[Pilih Menu AI Analyzer]
+        AI2{Input Type?}
+        AI3[Upload Document]
+        AI4[Pilih Inquiry]
+        AI5[AI Proses & Analisis]
+        AI6[Lihat Hasil Analisis<br/>dalam Markdown]
+        AI7[Copy ke Engineering Notes<br/>atau Task Description]
+    end
+
+    subgraph Reports["📈 REPORTS"]
+        R1[Pilih Menu Report]
+        R2{Jenis Report?}
+        R3[ECN/CCN Report<br/>Filter by Date]
+        R4[Activity Report<br/>Filter by User/Date/Inquiry]
+        R5[Export to Excel]
+        R6[View/Download Report]
+    end
+
+    subgraph Notif["🔔 NOTIFICATIONS"]
+        N1[Lihat Notifications]
+        N2[Task Assigned to Me]
+        N3[Kerjakan Task]
+        N4[Mark as Done]
+        N5[Notifikasi ke Role Berikutnya]
+    end
+
+    End([Logout / Selesai Menggunakan Aplikasi])
+
+    %% Main Flow
+    Start --> L1
+    L1 --> L2
+    L2 --> L3
+    L3 -->|Ya| L4
+    L3 -->|Tidak| L5
+    L5 --> L2
+    L4 --> D1
+    D1 --> D2
+
+    %% Dashboard to Features
+    D2 -->|ECN/CCN| E1
+    D2 -->|Activity/WO| A1
+    D2 -->|BOM Approval| B1
+    D2 -->|Support Doc| S1
+    D2 -->|AI Analyzer| AI1
+    D2 -->|Reports| R1
+    D2 -->|Notifications| N1
+    D2 -->|Logout| End
+
+    %% ECN Flow
+    E1 --> E2
+    E2 -->|Buat Baru| E3
+    E2 -->|Lihat List| E4
+    E2 -->|Approval| E5
+    E3 --> E6
+    E4 --> D2
+    E5 --> D2
+    E6 --> D2
+
+    %% Activity Flow
+    A1 --> A2
+    A2 -->|Buat Baru| A3
+    A2 -->|Lihat List| A4
+    A2 -->|Task Execution| A5
+    A2 -->|Notifications| A6
+    A3 --> D2
+    A4 --> D2
+    A5 --> D2
+    A6 --> D2
+
+    %% BOM Flow
+    B1 --> B2
+    B2 --> B3
+    B3 --> B4
+    B4 --> B5
+    B5 --> D2
+
+    %% Support Doc Flow
+    S1 --> S2
+    S2 -->|Upload| S3
+    S2 -->|Link to Job| S4
+    S2 -->|Download| S5
+    S2 -->|View Job Docs| S6
+    S3 --> D2
+    S4 --> D2
+    S5 --> D2
+    S6 --> D2
+
+    %% AI Analyzer Flow
+    AI1 --> AI2
+    AI2 -->|Document| AI3
+    AI2 -->|Inquiry| AI4
+    AI3 --> AI5
+    AI4 --> AI5
+    AI5 --> AI6
+    AI6 --> AI7
+    AI7 --> D2
+
+    %% Reports Flow
+    R1 --> R2
+    R2 -->|ECN/CCN| R3
+    R2 -->|Activity| R4
+    R3 --> R5
+    R4 --> R5
+    R5 --> R6
+    R6 --> D2
+
+    %% Notifications Flow
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> D2
+
+    %% Styling
+    style Start fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
+    style End fill:#F44336,stroke:#C62828,stroke-width:3px,color:#fff
+
+    style L1 fill:#E3F2FD,stroke:#1976D2
+    style L2 fill:#E3F2FD,stroke:#1976D2
+    style L3 fill:#FFF9C4,stroke:#F57C00
+    style L4 fill:#C8E6C9,stroke:#388E3C
+    style L5 fill:#FFCDD2,stroke:#D32F2F
+
+    style D1 fill:#E1BEE7,stroke:#7B1FA2
+    style D2 fill:#FFF9C4,stroke:#F57C00
+
+    style E1 fill:#BBDEFB,stroke:#1976D2
+    style E2 fill:#FFF9C4,stroke:#F57C00
+    style E3 fill:#B3E5FC,stroke:#0288D1
+    style E4 fill:#B3E5FC,stroke:#0288D1
+    style E5 fill:#B3E5FC,stroke:#0288D1
+    style E6 fill:#C8E6C9,stroke:#388E3C
+
+    style A1 fill:#FFE0B2,stroke:#F57C00
+    style A2 fill:#FFF9C4,stroke:#F57C00
+    style A3 fill:#FFCC80,stroke:#EF6C00
+    style A4 fill:#FFCC80,stroke:#EF6C00
+    style A5 fill:#FFCC80,stroke:#EF6C00
+    style A6 fill:#FFCC80,stroke:#EF6C00
+
+    style B1 fill:#B2DFDB,stroke:#00796B
+    style B2 fill:#B2DFDB,stroke:#00796B
+    style B3 fill:#B2DFDB,stroke:#00796B
+    style B4 fill:#B2DFDB,stroke:#00796B
+    style B5 fill:#C8E6C9,stroke:#388E3C
+
+    style S1 fill:#F8BBD0,stroke:#C2185B
+    style S2 fill:#FFF9C4,stroke:#F57C00
+    style S3 fill:#F8BBD0,stroke:#C2185B
+    style S4 fill:#F8BBD0,stroke:#C2185B
+    style S5 fill:#F8BBD0,stroke:#C2185B
+    style S6 fill:#F8BBD0,stroke:#C2185B
+
+    style AI1 fill:#CE93D8,stroke:#7B1FA2
+    style AI2 fill:#FFF9C4,stroke:#F57C00
+    style AI3 fill:#CE93D8,stroke:#7B1FA2
+    style AI4 fill:#CE93D8,stroke:#7B1FA2
+    style AI5 fill:#BA68C8,stroke:#6A1B9A
+    style AI6 fill:#CE93D8,stroke:#7B1FA2
+    style AI7 fill:#C8E6C9,stroke:#388E3C
+
+    style R1 fill:#FFCCBC,stroke:#E64A19
+    style R2 fill:#FFF9C4,stroke:#F57C00
+    style R3 fill:#FFCCBC,stroke:#E64A19
+    style R4 fill:#FFCCBC,stroke:#E64A19
+    style R5 fill:#FFCCBC,stroke:#E64A19
+    style R6 fill:#C8E6C9,stroke:#388E3C
+
+    style N1 fill:#B3E5FC,stroke:#0288D1
+    style N2 fill:#B3E5FC,stroke:#0288D1
+    style N3 fill:#B3E5FC,stroke:#0288D1
+    style N4 fill:#B3E5FC,stroke:#0288D1
+    style N5 fill:#C8E6C9,stroke:#388E3C

@@ -1,0 +1,294 @@
+%% ============================================================================
+%% FLOWCHART ENGINEERING MANAGEMENT SYSTEM
+%% ============================================================================
+%% Untuk render menjadi gambar, gunakan:
+%% 1. https://mermaid.live (copy-paste kode ini)
+%% 2. VS Code extension: "Markdown Preview Mermaid Support"
+%% 3. Command line: mmdc -i flowchart_engineering.mmd -o flowchart.png
+%% ============================================================================
+
+%% ----------------------------------------------------------------------------
+%% 1. LOGIN & AUTHENTICATION FLOW
+%% ----------------------------------------------------------------------------
+graph TB
+    subgraph "1. Login & Authentication"
+        A1[User Access Login Page]
+        A2[Input Username & Password]
+        A3[POST /login to Backend]
+        A4[Forward to Auth Server]
+        A5{Authentication Valid?}
+        A6[Return Token]
+        A7[Store Token in LocalStorage]
+        A8[Show Error Message]
+        A9[Redirect to Dashboard]
+
+        A1 --> A2
+        A2 --> A3
+        A3 --> A4
+        A4 --> A5
+        A5 -->|Yes| A6
+        A5 -->|No| A8
+        A6 --> A7
+        A7 --> A9
+        A8 --> A1
+    end
+
+%% ----------------------------------------------------------------------------
+%% 2. ECN/CCN MANAGEMENT FLOW
+%% ----------------------------------------------------------------------------
+graph TB
+    subgraph "2. ECN/CCN Management"
+        direction TB
+
+        subgraph "2.1 Create ECN/CCN"
+            B1[Access InputDataPage]
+            B2[Fill Form:<br/>Project, Detail, Type, Items]
+            B3[POST /engineeringDetailProblems]
+            B4[Save to Database<br/>Status: Pending Approval]
+            B5{Has Attachment?}
+            B6[Upload Photo<br/>POST /engineeringDetailProblems/id/photo]
+            B7[ECN/CCN Created]
+
+            B1 --> B2
+            B2 --> B3
+            B3 --> B4
+            B4 --> B5
+            B5 -->|Yes| B6
+            B5 -->|No| B7
+            B6 --> B7
+        end
+
+        subgraph "2.2 Approval Process"
+            C1[Manager Access<br/>ECNApproval Page]
+            C2[View Pending ECN/CCN List]
+            C3[GET /engineeringDetailProblems/id/all]
+            C4[Review Details]
+            C5{Approve?}
+            C6[Submit Approval<br/>with Remark & Date]
+            C7[Submit Rejection<br/>with Remark]
+            C8[Update Status<br/>Save Approval History]
+            C9[ECN/CCN Approved]
+            C10[ECN/CCN Rejected]
+
+            C1 --> C2
+            C2 --> C3
+            C3 --> C4
+            C4 --> C5
+            C5 -->|Yes| C6
+            C5 -->|No| C7
+            C6 --> C8
+            C7 --> C8
+            C8 -->|Approved| C9
+            C8 -->|Rejected| C10
+        end
+
+        B7 --> C1
+    end
+
+%% ----------------------------------------------------------------------------
+%% 3. ACTIVITY & TASK MANAGEMENT FLOW
+%% ----------------------------------------------------------------------------
+graph TB
+    subgraph "3. Activity & Task Management"
+        direction TB
+
+        subgraph "3.1 Create Activity"
+            D1[Access Activity Page]
+            D2[Fill Activity Form:<br/>Type, Customer, Description]
+            D3[Add Tasks:<br/>PIC, Hours, Due Date]
+            D4[Calculate FromCache & ToCache]
+            D5[POST /api/dashboard/activities]
+            D6[Activity & Tasks Created]
+
+            D1 --> D2
+            D2 --> D3
+            D3 --> D4
+            D4 --> D5
+            D5 --> D6
+        end
+
+        subgraph "3.2 Task Execution Flow"
+            E1[PIC Receives Notification]
+            E2[PIC Views Task Details<br/>GET /api/notifications/active?role=PIC]
+            E3[PIC Works on Task]
+            E4[PIC Mark Done<br/>POST /api/notifications/done]
+            E5[Update CompletedDatePic<br/>Send Notification to SPV]
+
+            E6[SPV Receives Notification]
+            E7[SPV Reviews Task<br/>GET /api/notifications/active?role=SPV]
+            E8[SPV Mark Done<br/>POST /api/notifications/done]
+            E9[Update CompletedDateSpv<br/>Send Notification to Manager]
+
+            E10[Manager Receives Notification]
+            E11[Manager Reviews Task<br/>GET /api/notifications/active?role=Manager]
+            E12[Manager Mark Done<br/>POST /api/notifications/done]
+            E13[Update CompletedDateManager<br/>Status: Completed]
+            E14[Task Completed]
+
+            E1 --> E2
+            E2 --> E3
+            E3 --> E4
+            E4 --> E5
+            E5 --> E6
+            E6 --> E7
+            E7 --> E8
+            E8 --> E9
+            E9 --> E10
+            E10 --> E11
+            E11 --> E12
+            E12 --> E13
+            E13 --> E14
+        end
+
+        D6 --> E1
+    end
+
+%% ----------------------------------------------------------------------------
+%% 4. BOM APPROVAL FLOW
+%% ----------------------------------------------------------------------------
+graph TB
+    subgraph "4. BOM Approval Process"
+        F1[BOM Change Detected<br/>from PPIC]
+        F2[Create BomApproval Record]
+        F3[Assign Multiple PICs<br/>BomApprovalPic]
+        F4[PICs Access BOMApproval Page]
+        F5[Each PIC Review BOM]
+        F6{All PICs Approved?}
+        F7[Send BOM Snapshot<br/>to PPIC Backend]
+        F8[Update Status: Approved]
+        F9[Send Notifications]
+        F10[Wait for Other PICs]
+        F11[BOM Approval Complete]
+
+        F1 --> F2
+        F2 --> F3
+        F3 --> F4
+        F4 --> F5
+        F5 --> F6
+        F6 -->|Yes| F7
+        F6 -->|No| F10
+        F7 --> F8
+        F8 --> F9
+        F9 --> F11
+        F10 --> F4
+    end
+
+%% ----------------------------------------------------------------------------
+%% 5. SUPPORT DOCUMENT MANAGEMENT FLOW
+%% ----------------------------------------------------------------------------
+graph TB
+    subgraph "5. Support Document Management"
+        G1[Access SupportDoc Page]
+        G2[View Support Tables List]
+        G3{Action?}
+        G4[Upload New Document<br/>POST /supporttables]
+        G5[File Saved in uploads/]
+        G6[Link to Job<br/>POST /api/support-engineering-documents]
+        G7[Provide JobId & SupportTableIds]
+        G8[Document Linked to Job]
+        G9[Download File<br/>GET /supporttables/id/download]
+        G10[Update Support Link<br/>PUT /api/support-engineering-documents/jobId]
+
+        G1 --> G2
+        G2 --> G3
+        G3 -->|Upload| G4
+        G3 -->|Link to Job| G6
+        G3 -->|Download| G9
+        G3 -->|Update| G10
+        G4 --> G5
+        G5 --> G2
+        G6 --> G7
+        G7 --> G8
+        G8 --> G2
+    end
+
+%% ----------------------------------------------------------------------------
+%% 6. AI DOCUMENT ANALYZER FLOW
+%% ----------------------------------------------------------------------------
+graph TB
+    subgraph "6. AI Document Analyzer"
+        H1[Access AI Analyzer Page]
+        H2{Select Input}
+        H3[Upload Document]
+        H4[Select Inquiry from List]
+        H5[Send to Backend for Analysis]
+        H6[Fetch Inquiry Data from CRM]
+        H7[Process with AI]
+        H8[Save to InquiryAIGenerations]
+        H9[Display Results in Markdown]
+        H10[Use for Engineering Notes<br/>or Task Descriptions]
+
+        H1 --> H2
+        H2 -->|Document| H3
+        H2 -->|Inquiry| H4
+        H3 --> H5
+        H4 --> H6
+        H6 --> H5
+        H5 --> H7
+        H7 --> H8
+        H8 --> H9
+        H9 --> H10
+    end
+
+%% ----------------------------------------------------------------------------
+%% 7. DASHBOARD METRICS FLOW
+%% ----------------------------------------------------------------------------
+graph TB
+    subgraph "7. Dashboard Metrics"
+        I1[User Access Dashboard]
+        I2[GET /api/dashboard/metrics]
+        I3[GET /api/dashboard/ecn-data]
+        I4[GET /api/dashboard/ccn-data]
+        I5[Aggregate Data Processing]
+        I6[Render Charts & Cards]
+        I7{Need Update?}
+        I8[POST /api/dashboard/metrics/arr]
+        I9[Real-time Update]
+        I10[Dashboard Displayed]
+
+        I1 --> I2
+        I1 --> I3
+        I1 --> I4
+        I2 --> I5
+        I3 --> I5
+        I4 --> I5
+        I5 --> I6
+        I6 --> I7
+        I7 -->|Yes| I8
+        I7 -->|No| I10
+        I8 --> I9
+        I9 --> I10
+    end
+
+%% ----------------------------------------------------------------------------
+%% 8. REPORTING & EXPORT FLOW
+%% ----------------------------------------------------------------------------
+graph TB
+    subgraph "8. Reporting & Export"
+        J1[Access Report Page]
+        J2[Select Filters:<br/>Date Range, User, Inquiry, etc.]
+        J3[GET /api/dashboard/activities<br/>with parameters]
+        J4{Export Format?}
+        J5[Display in Browser]
+        J6[Request Excel Export<br/>?excel=true]
+        J7[Backend Generate Excel<br/>using ClosedXML]
+        J8[Fetch External Data:<br/>Users, POs, Inquiries]
+        J9[Populate Excel Sheet]
+        J10[Download Excel File]
+        J11[View Report]
+
+        J1 --> J2
+        J2 --> J3
+        J3 --> J4
+        J4 -->|View| J5
+        J4 -->|Excel| J6
+        J5 --> J11
+        J6 --> J7
+        J7 --> J8
+        J8 --> J9
+        J9 --> J10
+    end
+
+%% ============================================================================
+%% END OF FLOWCHARTS
+%% ============================================================================
