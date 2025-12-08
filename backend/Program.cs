@@ -1557,15 +1557,6 @@ app.MapPut("/api/dashboard/activities/{id}", async (int id, EngineeringActivity 
     return Results.Ok(existing);
 });
 
-        // Optional: bisa update FromCache dan ToCache juga jika task berubah
-        existing.FromCache = updatedActivity.FromCache;
-        existing.ToCache = updatedActivity.ToCache;
-
-        await db.SaveChangesAsync();
-        return Results.Ok(existing);
-    }
-);
-
 // app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, AppDbContext db, HttpContext httpContext) =>
 // {
 //     var currentUser = await Fetcher.fetchUsersAsync();  // Ambil pengguna yang sedang login, atau gunakan userId yang relevan
