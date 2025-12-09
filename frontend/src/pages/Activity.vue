@@ -82,9 +82,10 @@ const fetchUsersData = async () => {
 const fetchSupportTables = async () => {
   try {
     const response = await axios.get(`${import.meta.env.VITE_APP_BASE_URL}/supporttables`);
-    supportTables.value = response.data;
+    supportTables.value = Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     console.error("Error fetching support tables:", error);
+    supportTables.value = [];
   }
 };
 onMounted(async () => {
@@ -96,20 +97,24 @@ const fetchUsersAndDepartments = async () => {
     // Fetch daftar departemen
     const deptResponse = await fetch("https://meeting-backend.iotech.my.id/ext-departments");
     const deptData = await deptResponse.json();
-    departments.value = [{ id: null, name: "All Departments" }, ...deptData];
+    departments.value = Array.isArray(deptData) ? [{ id: null, name: "All Departments" }, ...deptData] : [{ id: null, name: "All Departments" }];
 
     // Fetch daftar user
     const userResponse = await fetch("https://meeting-backend.iotech.my.id/ext-users");
     const userData = await userResponse.json();
 
     // Simpan user dalam map { extUserId: departmentName }
-    usersMap.value = userData.reduce((map, user) => {
-      map[user.id] = user.departmentName;
-      return map;
-    }, {});
+    if (Array.isArray(userData)) {
+      usersMap.value = userData.reduce((map, user) => {
+        map[user.id] = user.departmentName;
+        return map;
+      }, {});
+    }
 
   } catch (error) {
     console.error("Error fetching users and departments:", error);
+    departments.value = [{ id: null, name: "All Departments" }];
+    usersMap.value = {};
   }
 };
 watch(selectedDepartment, () => {
@@ -137,9 +142,11 @@ const fetchCustomers = async () => {
     if (!response.ok) {
       throw new Error(`Failed to fetch customers: ${response.statusText}`);
     }
-    customers.value = await response.json(); // Simpan data pelanggan di state
+    const data = await response.json();
+    customers.value = Array.isArray(data) ? data : []; // Simpan data pelanggan di state
   } catch (error) {
     console.error("Error fetching customers:", error);
+    customers.value = [];
   }
 };
 onMounted(async () => {
@@ -337,14 +344,27 @@ const loadNotifications = async () => {
       `${import.meta.env.VITE_APP_BASE_URL}/api/notifications/active?role=${userRole.value}`
     );
     if (response.ok) {
-      const data = await response.json();
-      notificationStore.notifications = data;
-      console.log("Notifikasi berhasil dimuat:", data);
+      const text = await response.text();
+      // Check if response is empty or not valid JSON
+      if (!text || text.trim() === '') {
+        notificationStore.notifications = [];
+        return;
+      }
+      try {
+        const data = JSON.parse(text);
+        notificationStore.notifications = Array.isArray(data) ? data : [];
+        console.log("Notifikasi berhasil dimuat:", data);
+      } catch (parseError) {
+        console.error("Error parsing notification JSON:", parseError, "Response:", text);
+        notificationStore.notifications = [];
+      }
     } else {
       console.error("Gagal memuat notifikasi:", response.status);
+      notificationStore.notifications = [];
     }
   } catch (error) {
     console.error("Error memuat notifikasi:", error);
+    notificationStore.notifications = [];
   }
 };
 
@@ -407,12 +427,12 @@ const removeTask = (index) => {
 const fetchInquiriesData = async () => {
   const d = await fetchInquiries();
   console.log("inquiries", d);
-  inquiries.value = d;
+  inquiries.value = Array.isArray(d) ? d : [];
 };
 
 const fetchWoTemplatesData = async () => {
   const d = await fetchWoTemplates();
-  woTemplates.value = d;
+  woTemplates.value = d || { templates: [] };
 };
 
 
@@ -665,12 +685,14 @@ const handleSave = async () => {
     }
 
     // Normalisasi setiap task
-    updatedForm.tasks = updatedForm.tasks.map(task => ({
-      ...task,
-      completedByPicId: task.completedByPicId || null,
-      completedBySpvId: task.completedBySpvId || null,
-      completedByManagerId: task.completedByManagerId || null,
-    }));
+    if (Array.isArray(updatedForm.tasks)) {
+      updatedForm.tasks = updatedForm.tasks.map(task => ({
+        ...task,
+        completedByPicId: task.completedByPicId || null,
+        completedBySpvId: task.completedBySpvId || null,
+        completedByManagerId: task.completedByManagerId || null,
+      }));
+    }
 
     const resp = await fetch(
       `${import.meta.env.VITE_APP_BASE_URL}/api/dashboard/activities`,
@@ -839,10 +861,10 @@ const alertx = (content) => {
         <!-- Filter User -->
         <v-autocomplete
           label="Filter by User"
-          :items="users.map(user => ({
-            label: `${user?.name} (${departments.find(d => `${d?.id}` === `${user?.departmentId}`)?.name || 'Unknown'})`,
+          :items="Array.isArray(users) ? users.map(user => ({
+            label: `${user?.name} (${Array.isArray(departments) ? departments.find(d => `${d?.id}` === `${user?.departmentId}`)?.name : 'Unknown'} || 'Unknown')`,
             value: user.id
-          }))"
+          })) : []"
           item-title="label" 
           density="compact"
           variant="outlined"
@@ -857,10 +879,10 @@ const alertx = (content) => {
         <!-- Filter Department -->
         <v-autocomplete
           label="Filter by Department"
-          :items="departments.map(department => ({
+          :items="Array.isArray(departments) ? departments.map(department => ({
             label: department.name,
             value: department.name // Gunakan nama kembali agar filtering berjalan
-          }))"
+          })) : []"
           item-title="label"
           density="compact"
           variant="outlined"
@@ -1105,7 +1127,7 @@ const alertx = (content) => {
             <strong>PO Type</strong>
 
             <!-- <v-autocomplete
-              :items="activityTypes.map((t) => ({ label: t, value: t }))"
+              :items="Array.isArray(activityTypes) ? activityTypes.map((t) => ({ label: t, value: t })) : []"
               :item-title="(t) => t?.label"
               :modelValue="form?.type"
               @update:modelValue="
@@ -1126,7 +1148,7 @@ const alertx = (content) => {
             ></v-autocomplete> -->
             <v-autocomplete
               v-model="form.type"
-              :items="activityTypes.map((t) => ({ label: t, value: t }))"
+              :items="Array.isArray(activityTypes) ? activityTypes.map((t) => ({ label: t, value: t })) : []"
               item-title="label"
               item-value="value"
               label="PO Type"
@@ -1160,10 +1182,10 @@ const alertx = (content) => {
             <div>
               <v-autocomplete
                 v-model="form.selectedCustomerId"
-                :items="customers.map(c => ({
+                :items="Array.isArray(customers) ? customers.map(c => ({
                   label: `${c.businessType} ${c.name}`,
                   value: c.id
-                }))"
+                })) : []"
                 item-title="label"
                 item-value="value"
                 label="Select a customer or company"
@@ -1182,10 +1204,10 @@ const alertx = (content) => {
             <div>
               <v-autocomplete
                 v-model="form.selectedCustomerId"
-                :items="customers.map(c => ({
+                :items="Array.isArray(customers) ? customers.map(c => ({
                   label: `${c.businessType} ${c.name}`,
                   value: c.id
-                }))"
+                })) : []"
                 item-title="label"
                 item-value="value"
                 label="Select a customer or company"
@@ -1208,7 +1230,7 @@ const alertx = (content) => {
               <v-autocomplete
                 v-model="form.selectedSupportDocId"
                 :items="[
-                  ...supportTables.map(doc => ({ label: doc.name, value: doc.id })),
+                  ...(Array.isArray(supportTables) ? supportTables.map(doc => ({ label: doc.name, value: doc.id })) : []),
                   // { label: 'Others', value: 'Others' }
                 ]"
                 item-title="label"
@@ -1285,10 +1307,10 @@ const alertx = (content) => {
                <!-- {{JSON.stringify(form)}} -->
                <v-autocomplete
                   v-model="form.extJobId"
-                  :items="jobs.jobs.map(j => ({
+                  :items="Array.isArray(jobs?.jobs) ? jobs.jobs.map(j => ({
                     label: j.name,
                     value: j.masterJavaBaseModel.id
-                  }))"
+                  })) : []"
                   item-title="label"
                   item-value="value"
                   label="Job"
@@ -1401,12 +1423,11 @@ const alertx = (content) => {
                 <div class="flex-grow-1">
                   <v-autocomplete
                     placeholder="Activity Template..."
-                    :items="
+                    :items="Array.isArray(woTemplates?.templates) ?
                       woTemplates?.templates?.map((t) => ({
                         label: t?.name,
                         value: t,
-                      }))
-                    "
+                      })) : []"
                     :item-title="(u) => u?.label"
                     @update:model-value="
                       (d) => {
@@ -1760,14 +1781,13 @@ const alertx = (content) => {
 <td class="border border-dark">
   <!-- Autocomplete untuk memilih PIC -->
   <v-autocomplete
-    :items="
+    :items="Array.isArray(users) ?
       users.map((t) => ({
-        label: `${t?.name} (${
-          departments.find((d) => `${d?.id}` === `${t?.departmentId}`)?.name
+        label: `${t?.name} (${Array.isArray(departments) ?
+          departments.find((d) => `${d?.id}` === `${t?.departmentId}`)?.name : 'Unknown'
         })`,
         value: t,
-      }))
-    "
+      })) : []"
     :item-title="(u) => u?.label"
     @update:model-value="
       (u) => {

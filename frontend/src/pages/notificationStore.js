@@ -107,12 +107,30 @@ export const useNotificationStore = defineStore('notificationStore', () => {
     }
   };
 
-  // Simpan notifikasi ke localStorage setiap ada perubahan
+  // Simpan notifikasi ke localStorage setiap ada perubahan (batasi hingga 100 terbaru)
+  const MAX_NOTIFICATIONS = 100;
+
   watch(
     notifications,
     (newNotifications) => {
-      localStorage.setItem("notifications", JSON.stringify(newNotifications));
-      console.log("Notifikasi disimpan ke localStorage:", newNotifications);
+      // Limiter: hanya simpan maksimal 100 notifikasi terbaru
+      const limitedNotifications = newNotifications.slice(-MAX_NOTIFICATIONS);
+
+      try {
+        localStorage.setItem("notifications", JSON.stringify(limitedNotifications));
+        console.log(`Notifikasi disimpan ke localStorage (${limitedNotifications.length}/${MAX_NOTIFICATIONS}):`, limitedNotifications);
+      } catch (error) {
+        if (error.name === 'QuotaExceededError') {
+          // Jika quota exceeded, hapus localStorage dan coba lagi dengan data terbatas
+          localStorage.removeItem("notifications");
+          console.warn("Quota exceeded, membersihkan localStorage dan mencoba lagi");
+          const evenMoreLimited = newNotifications.slice(-50); // Kurangi lebih lanjut
+          localStorage.setItem("notifications", JSON.stringify(evenMoreLimited));
+          console.log(`Notifikasi disimpan ke localStorage setelah cleanup (${evenMoreLimited.length}):`, evenMoreLimited);
+        } else {
+          console.error("Error menyimpan notifikasi ke localStorage:", error);
+        }
+      }
     },
     { deep: true }
   );

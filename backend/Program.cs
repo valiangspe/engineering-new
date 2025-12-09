@@ -15,6 +15,9 @@ using SupportReportAPI.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Get PPIC URL from environment variable, default to production
+var ppicUrl = Environment.GetEnvironmentVariable("PPIC_URL") ?? "https://ppic-backend.iotech.my.id";
+
 // var connString = "server=172.17.0.1;database=engineer;user=gspe;password=gspe-intercon";
 var connString = "server=host.docker.internal;database=engineer;user=gspe;password=gspe-intercon";
 
@@ -1444,6 +1447,7 @@ app.MapPost(
             // Build PPIC-compatible payload in MeetingTaskListsView format
             var ppicPayload = new
             {
+                engineeringActivityId = activity.Id, // Send activity ID for tracking
                 taskLists = new[]
                 {
                     new
@@ -1508,7 +1512,7 @@ app.MapPost(
             Console.WriteLine($"Sending to PPIC: {json}");
 
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await client.PostAsync("https://ppic-backend.iotech.my.id/ext-meetingtasks-proto-save", content);
+            var response = await client.PostAsync($"{ppicUrl}/ext-meetingtasks-proto-save", content);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -1554,7 +1558,148 @@ app.MapPut("/api/dashboard/activities/{id}", async (int id, EngineeringActivity 
     existing.ToCache = updatedActivity.ToCache;
 
     await db.SaveChangesAsync();
+
+    // Sync to WO manufacturing in PPIC (UPDATE)
+    if (existing.Type == EngineeringActivityType.PostPO)
+    {
+        try
+        {
+            var client = new HttpClient();
+
+            // Calculate total time activity
+            var totalTimeActivity = existing.Tasks?.Sum(t => t.Hours ?? 0) ?? 0;
+
+            // Build PPIC-compatible payload in MeetingTaskListsView format
+            var ppicPayload = new
+            {
+                engineeringActivityId = existing.Id, // Send activity ID for update reference
+                taskLists = new[]
+                {
+                    new
+                    {
+                        taskList = new
+                        {
+                            masterJavaBaseModel = new
+                            {
+                                createdAt = existing.CreatedAt?.ToString("o"),
+                                updatedAt = existing.UpdatedAt?.ToString("o")
+                            },
+                            name = existing.Description,
+                            extInChargeId = existing.PIC?.ToString(),
+                            extCustomerId = existing.Customer?.ToString(),
+                            extJobId = existing.ExtJobId?.ToString(),
+                            extPanelCodeId = existing.ExtPanelCodeId?.ToString(),
+                            extPurchaseOrderId = existing.ExtPurchaseOrderId?.ToString(),
+                            totalTimeHours = totalTimeActivity,
+                            meetingTasks = existing.Tasks == null ? new List<object>() : existing.Tasks.Select(t => new
+                            {
+                                masterJavaBaseModel = new
+                                {
+                                    createdAt = t.CreatedAt?.ToString("o"),
+                                    updatedAt = t.UpdatedAt?.ToString("o")
+                                },
+                                description = t.Description,
+                                durationMins = (t.Hours ?? 0) * 60,
+                                start = t.From?.ToString("yyyy-MM-dd"),
+                                deadline = t.To?.ToString("yyyy-MM-dd"),
+                                target = t.To?.ToString("yyyy-MM-dd"),
+                                meetingTaskTargetDates = new[]
+                                {
+                                    new { date = t.To?.ToString("yyyy-MM-dd") }
+                                },
+                                meetingTaskInCharges = t.InCharges == null ? new List<object>() : t.InCharges.Select(ic => new
+                                {
+                                    extUserId = ic.ExtUserId?.ToString(),
+                                    totalTimeHoursTask = t.Hours,
+                                    totalTimeHours = totalTimeActivity,
+                                    masterJavaBaseModel = new
+                                    {
+                                        createdAt = ic.CreatedAt?.ToString("o"),
+                                        updatedAt = ic.UpdatedAt?.ToString("o")
+                                    }
+                                }).Cast<object>().ToList(),
+                                status = (t.CompletedDatePic != null && t.CompletedDateSpv != null) ? "COMPLETED" : "OUTSTANDING",
+                                extPicCompletedDate = t.CompletedDatePic?.ToString("yyyy-MM-dd"),
+                                completedDate = t.CompletedDateSpv?.ToString("yyyy-MM-dd"),
+                                remark = t.Remark
+                            }).Cast<object>().ToList()
+                        }
+                    }
+                }
+            };
+
+            var json = JsonSerializer.Serialize(ppicPayload, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = true
+            });
+
+            Console.WriteLine($"Updating PPIC WO for Activity ID {existing.Id}: {json}");
+
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await client.PutAsync($"{ppicUrl}/ext-meetingtasks-proto-update/{existing.Id}", content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Failed to update activity in PPIC WO: {response.StatusCode} - {errorContent}");
+            }
+            else
+            {
+                Console.WriteLine($"Successfully updated activity ID {existing.Id} in PPIC WO");
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Error updating PPIC WO: {e.Message}");
+            Console.WriteLine($"Stack trace: {e.StackTrace}");
+        }
+    }
+
     return Results.Ok(existing);
+});
+
+// DELETE: api/dashboard/activities/{id}
+app.MapDelete("/api/dashboard/activities/{id}", async (int id, AppDbContext db) =>
+{
+    var activity = await db.EngineeringActivities
+        .Include(e => e.Tasks)
+        .ThenInclude(t => t.InCharges)
+        .FirstOrDefaultAsync(e => e.Id == id);
+
+    if (activity == null)
+        return Results.NotFound("Activity not found");
+
+    // Sync DELETE to PPIC before deleting from database
+    if (activity.Type == EngineeringActivityType.PostPO)
+    {
+        try
+        {
+            var client = new HttpClient();
+            var response = await client.DeleteAsync($"{ppicUrl}/ext-meetingtasks-proto-delete/{id}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Failed to delete activity from PPIC WO: {response.StatusCode} - {errorContent}");
+            }
+            else
+            {
+                Console.WriteLine($"Successfully deleted activity ID {id} from PPIC WO");
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Error deleting from PPIC WO: {e.Message}");
+            Console.WriteLine($"Stack trace: {e.StackTrace}");
+        }
+    }
+
+    // Delete from database
+    db.EngineeringActivities.Remove(activity);
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "Activity deleted successfully", id = id });
 });
 
 // app.MapPost("/api/dashboard/activities", async (EngineeringActivity activity, AppDbContext db, HttpContext httpContext) =>
